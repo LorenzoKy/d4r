@@ -15,7 +15,7 @@ foreach ($name in $defaults.Keys) {
     if (!(Get-Variable -Name $name -ValueOnly)) { Set-Variable -Name $name -Value (Join-Path $repo $defaults[$name]) }
 }
 $GpuArch=Get-D4RGpuTarget $DiagnosticRoot $GpuArch
-if ($GpuArch -ne 'gfx1201' -and !$PSBoundParameters.ContainsKey('PackageRoot')) { $PackageRoot += "-$GpuArch" }
+if ($GpuArch -ne 'gfx1200' -and !$PSBoundParameters.ContainsKey('PackageRoot')) { $PackageRoot += "-$GpuArch" }
 if (!$KernelKRoot) { $KernelKRoot=Join-Path $repo "build/native-k-$GpuArch" }
 if (!$KernelMRoot) { $KernelMRoot=Join-Path $repo "build/native-m-$GpuArch" }
 foreach ($directory in @($KernelKRoot,$KernelMRoot)) {
@@ -102,7 +102,7 @@ New-Item -ItemType Directory -Force (Split-Path $sourceArchive) | Out-Null
 if ($LASTEXITCODE) { throw 'Cannot archive the committed d4r source.' }
 Stage $sourceArchive 'source/d4r-windows-rdna4-source.zip'
 $metadata = [ordered]@{
-    architecture=$GpuArch; hardwareValidation=$(if ($GpuArch -eq 'gfx1201') { 'RX9070XT tested; other SKUs unverified' } else { 'compile-only; hardware unverified' }); nativeKernels=16; dlssSha256='3975567b8943c53acce397f2b72380092f84f162d00b0d2c7d08a1025c563983';
+    architecture=$GpuArch; hardwareValidation=$(if ($GpuArch -eq 'gfx1200') { 'RX9060XT target; hardware validation required' } else { 'hardware validation required for this target' }); nativeKernels=16; dlssSha256='3975567b8943c53acce397f2b72380092f84f162d00b0d2c7d08a1025c563983';
     d4rCommit=$sourceCommit;
     d4rWorkingTreeDirty=$sourceDirty;
     optiScaler=(Get-Content -LiteralPath (Join-Path $OptiScalerRoot 'build-info.json') -Raw | ConvertFrom-Json);
