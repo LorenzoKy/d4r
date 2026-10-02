@@ -49,7 +49,7 @@ d4r_wmma_legacy_layout(d4r_wmma_h16 a, d4r_wmma_h16 b, d4r_wmma_f8 c)
         result[i] = (row >> 3) == group ? d12[new_index] : remote_d[new_index];
     }
     return result;
-#elif defined(__gfx11__)
+#elif defined(__GFX11__)
     return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32(a, b, c);
 #else
 #error "d4r WMMA backend requires a validated gfx11 or gfx12 target"
