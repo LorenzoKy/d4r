@@ -3,7 +3,7 @@
 #define PWIN_F32ACC
 #ifndef D4R_K_POS_MT
 #define D4R_K_POS_MT 2
-#elif !defined(__GFX12__) || !defined(D4R_K_FP16_BASELINE)
+#elif !defined(__gfx12__) || !defined(D4R_K_FP16_BASELINE)
 #error "experimental position token tiling requires gfx12 strict K baseline"
 #endif
 #include "pwin_pos.h"
