@@ -273,7 +273,7 @@ __device__ __forceinline__ sop lds16(const half_t* p)
 // e4m3 bytes of an f16 operand whose values are e4m3 values (K order kept: byte j = element j)
 __device__ __forceinline__ gop to_fp8(sop v)
 {
-#if defined(D4R_FP8_HW_PACK) && defined(__GFX12__)
+#if defined(D4R_FP8_HW_PACK) && defined(__gfx12__)
     // Inputs already contain exact e4m3 values. gfx12's native packed convert
     // avoids the software subnormal/sign/exponent reconstruction below. Keep
     // opt-in until all finite encodings and layer/network outputs pass replay.
@@ -296,7 +296,7 @@ __device__ __forceinline__ gop to_fp8(sop v)
 // f32 += A B over 16 K for e4m3 operands
 __device__ __forceinline__ f8v wmma8(gop a, gop b, f8v c)
 {
-#if defined(__GFX12__)
+#if defined(__gfx12__)
     return __builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w32_gfx12(__builtin_bit_cast(wm_i2v, a), __builtin_bit_cast(wm_i2v, b), c);
 #else
     // layout shim: the e4m3 values widened to f16 (exact), then the f16 WMMA
