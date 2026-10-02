@@ -38,7 +38,7 @@ int main(int argc, char** argv)
             ~ModuleCleanup() { if (module) (void)hip.hipModuleUnload(module); }
         } cleanup{hip, module};
         hipFunction_t raw_kernel = nullptr, adapter_kernel = nullptr, upstream_kernel = nullptr, swap_kernel = nullptr;
-        hip.check(hip.hipModuleGetFunction(&raw_kernel, module, "d4r_wmma_gfx1200"),
+        hip.check(hip.hipModuleGetFunction(&raw_kernel, module, "d4r_wmma_gfx1201"),
             "hipModuleGetFunction(WMMA)");
         hip.check(hip.hipModuleGetFunction(&adapter_kernel, module, "d4r_wmma_legacy_contract"),
             "hipModuleGetFunction(WMMA adapter)");
