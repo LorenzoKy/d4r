@@ -21,6 +21,7 @@
 
 typedef _Float16 half_t;
 typedef _Float16 hv2 __attribute__((ext_vector_type(2)));
+typedef _Float16 h8 __attribute__((ext_vector_type(8)));
 typedef _Float16 h16 __attribute__((ext_vector_type(16)));
 typedef float f8v __attribute__((ext_vector_type(8)));
 #ifdef D4R_K_PACKED_ACC
