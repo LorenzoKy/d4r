@@ -1,0 +1,42 @@
+name: Build RX 9060 XT test
+
+on:
+  push:
+    branches: [windows-rdna4-9060xt-opt]
+  workflow_dispatch:
+
+jobs:
+  build-gfx1200:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+        with:
+          ref: windows-rdna4-9060xt-opt
+          submodules: recursive
+
+      - name: Prepare Windows build tools
+        shell: pwsh
+        run: .\scripts\windows\setup-windows-tools.ps1 -RuntimeProfile therock
+
+      - name: Build gfx1200
+        shell: pwsh
+        run: |
+          .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -BuildDirectory "$PWD\build\windows-gfx1200" -InstallDirectory "$PWD\dist\windows-gfx1200"
+
+      - name: Package test artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\d4r-windows-gfx1200-test | Out-Null
+          Copy-Item dist\windows-gfx1200\* dist\d4r-windows-gfx1200-test -Recurse -Force
+          Copy-Item docs\windows-gpu-support.md dist\d4r-windows-gfx1200-test\README-gfx1200.md
+          Copy-Item docs\windows-performance.md dist\d4r-windows-gfx1200-test\windows-performance.md
+          Get-ChildItem dist\d4r-windows-gfx1200-test -Recurse | Select-Object FullName,Length
+
+      - name: Upload test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: d4r-windows-gfx1200-test
+          path: dist/d4r-windows-gfx1200-test
+          if-no-files-found: error
+          retention-days: 14
