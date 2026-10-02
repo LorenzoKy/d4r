@@ -21,16 +21,16 @@
 #include "wave32_exchange.h"
 
 #ifndef D4R_WMMA_LAYOUT
-#if defined(__GFX12__)
+#if defined(__gfx12__)
 #define D4R_WMMA_LAYOUT 12
 #else
 #define D4R_WMMA_LAYOUT 11
 #endif
 #endif
-#if D4R_WMMA_LAYOUT == 12 && !defined(__GFX12__)
+#if D4R_WMMA_LAYOUT == 12 && !defined(__gfx12__)
 #define D4R_WMMA_SHIM 1
 #endif
-#if D4R_WMMA_LAYOUT == 11 && defined(__GFX12__)
+#if D4R_WMMA_LAYOUT == 11 && defined(__gfx12__)
 #error "the gfx11 WMMA layout does not exist on gfx12"
 #endif
 
@@ -225,7 +225,7 @@ WM_FN void wm_acc_vec_load(const wm_f16* p, wm_f16 out[8])
 }
 
 // ---------------------------------------------------------------- the WMMA itself
-#if D4R_WMMA_LAYOUT == 12 && defined(__GFX12__)
+#if D4R_WMMA_LAYOUT == 12 && defined(__gfx12__)
 WM_FN wm_f8v wm_mma(const wm_op& a, const wm_op& b, wm_f8v c)
 {
     return __builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(__builtin_bit_cast(wm_h8, a), __builtin_bit_cast(wm_h8, b), c);
@@ -332,7 +332,7 @@ WM_FN wm_f8v wm_mma(const wm_op& a, const wm_op& b, wm_f8v c)
 }
 #endif
 #endif
-#if D4R_WMMA_LAYOUT == 12 && defined(__GFX12__)
+#if D4R_WMMA_LAYOUT == 12 && defined(__gfx12__)
 // operands whose K slots follow ZLUDA's gfx12 order: the same instruction (the order only matters to the shim)
 WM_FN wm_f8v wm_mma_zluda(const wm_op& a, const wm_op& b, wm_f8v c)
 {
