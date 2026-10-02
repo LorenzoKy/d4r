@@ -2,7 +2,7 @@
 // d4r-build-flags: -mcumode
 #define PWIN_F32ACC
 #ifdef D4R_K_ENC1_POS_MT
-#if !defined(__gfx12__) || !defined(D4R_K_FP16_BASELINE)
+#if !defined(__GFX12__) || !defined(D4R_K_FP16_BASELINE)
 #error "experimental enc1 token tiling requires gfx12 strict K baseline"
 #endif
 #if D4R_K_ENC1_POS_MT != 1 && D4R_K_ENC1_POS_MT != 2 && D4R_K_ENC1_POS_MT != 4
