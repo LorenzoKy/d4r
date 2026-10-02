@@ -24,7 +24,7 @@ typedef _Float16 hv2 __attribute__((ext_vector_type(2)));
 typedef _Float16 h16 __attribute__((ext_vector_type(16)));
 typedef float f8v __attribute__((ext_vector_type(8)));
 #ifdef D4R_K_PACKED_ACC
-#if !defined(__GFX12__) || !defined(D4R_K_FP16_BASELINE) || defined(D4R_K_F16_WMMA)
+#if !defined(__gfx12__) || !defined(D4R_K_FP16_BASELINE) || defined(D4R_K_F16_WMMA)
 #error "packed accumulator storage requires gfx12 strict F32 WMMA baseline"
 #endif
 // Keep already-rounded values packed between steps. Every matrix instruction
@@ -88,6 +88,14 @@ __device__ __forceinline__ half_t l2_sum(const half_t* row)
 
 // one k16 step with the f16 accumulator of NVIDIA's f16 wmma (rounded after the step)
 // PWIN_F32ACC: keep the accumulator in f32 through the chain (rounded to f16 where the values are used)
+__device__ __forceinline__ f8v round_accumulator_f16(f8v v)
+{
+    // Preserve NVIDIA's per-MMA FP16 rounding semantics while giving LLVM a
+    // vector conversion opportunity on gfx12 instead of eight scalar casts.
+    const h8 rounded = __builtin_convertvector(v, h8);
+    return __builtin_convertvector(rounded, f8v);
+}
+
 __device__ __forceinline__ acc8v mma16(const op_t& a, const op_t& b, acc8v c)
 {
 #ifdef D4R_K_PACKED_ACC
@@ -95,16 +103,14 @@ __device__ __forceinline__ acc8v mma16(const op_t& a, const op_t& b, acc8v c)
     const f8v d = wm_mma(a, b, fc);
     return __builtin_convertvector(d, acc8v);
 #elif defined(D4R_K_F16_WMMA)
-#if !defined(__GFX12__) || D4R_WMMA_LAYOUT != 12 || !defined(D4R_K_FP16_BASELINE)
+#if !defined(__gfx12__) || D4R_WMMA_LAYOUT != 12 || !defined(D4R_K_FP16_BASELINE)
 #error "experimental packed F16 WMMA requires gfx12 native layout and strict K baseline"
 #endif
     return wm_mma_f16_step(a, b, c);
 #else
     f8v d = wm_mma(a, b, c);
 #if !defined(PWIN_F32ACC) || defined(D4R_K_FP16_BASELINE)
-#pragma unroll
-    for (int i = 0; i < 8; ++i)
-        d[i] = (float)(half_t)d[i];
+    d = round_accumulator_f16(d);
 #endif
     return d;
 #endif
