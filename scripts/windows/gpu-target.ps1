@@ -18,9 +18,9 @@ function Get-D4RGpuTarget([string]$Root, [string]$Requested) {
         $configured=(Get-Content -LiteralPath $targetFile -Raw | ConvertFrom-Json).architecture
         [void](Get-D4RGpuTargetInfo $configured)
     }
-    $target=if ($Requested) { $Requested } elseif ($configured) { $configured } else { 'gfx1201' }
+    $target=if ($Requested) { $Requested } elseif ($configured) { $configured } else { 'gfx1200' }
     [void](Get-D4RGpuTargetInfo $target)
-    if (!$configured -and $target -ne 'gfx1201') { throw "A $target build requires gpu-target.json; rebuild with -GpuArch $target." }
+    if (!$configured -and $target -ne 'gfx1200') { throw "A $target build requires gpu-target.json; rebuild with -GpuArch $target." }
     if ($configured -and $target -ne $configured) { throw "Requested $target differs from package target $configured" }
     return $target
 }
