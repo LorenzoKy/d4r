@@ -24,7 +24,7 @@ typedef _Float16 hv2 __attribute__((ext_vector_type(2)));
 typedef _Float16 h16 __attribute__((ext_vector_type(16)));
 typedef float f8v __attribute__((ext_vector_type(8)));
 #ifdef D4R_K_PACKED_ACC
-#if !defined(__gfx12__) || !defined(D4R_K_FP16_BASELINE) || defined(D4R_K_F16_WMMA)
+#if !defined(__GFX12__) || !defined(D4R_K_FP16_BASELINE) || defined(D4R_K_F16_WMMA)
 #error "packed accumulator storage requires gfx12 strict F32 WMMA baseline"
 #endif
 // Keep already-rounded values packed between steps. Every matrix instruction
@@ -103,7 +103,7 @@ __device__ __forceinline__ acc8v mma16(const op_t& a, const op_t& b, acc8v c)
     const f8v d = wm_mma(a, b, fc);
     return __builtin_convertvector(d, acc8v);
 #elif defined(D4R_K_F16_WMMA)
-#if !defined(__gfx12__) || D4R_WMMA_LAYOUT != 12 || !defined(D4R_K_FP16_BASELINE)
+#if !defined(__GFX12__) || D4R_WMMA_LAYOUT != 12 || !defined(D4R_K_FP16_BASELINE)
 #error "experimental packed F16 WMMA requires gfx12 native layout and strict K baseline"
 #endif
     return wm_mma_f16_step(a, b, c);
