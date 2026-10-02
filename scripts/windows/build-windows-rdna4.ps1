@@ -2,7 +2,7 @@
 param(
     [string]$HipRoot = $env:HIP_PATH,
     [ValidateSet('stable', 'therock')][string]$RuntimeProfile = 'stable',
-    [string]$GpuArch = 'gfx1201',
+    [string]$GpuArch = 'gfx1200',
     [string]$ZludaRoot,
     [string]$ToolchainRoot,
     [string]$BuildDirectory,
@@ -20,7 +20,7 @@ if ($RuntimeProfile -eq 'therock') {
 if (!$HipRoot) { $HipRoot = 'C:\Program Files\AMD\ROCm\7.2' }
 if (!$BuildDirectory) { $BuildDirectory = Join-Path $repo 'build/windows-rdna4' }
 if (!$InstallDirectory) { $InstallDirectory = Join-Path $repo 'dist/windows-rdna4-diagnostics' }
-if ($GpuArch -ne 'gfx1201') {
+if ($GpuArch -ne 'gfx1200') {
     if (!$PSBoundParameters.ContainsKey('BuildDirectory')) { $BuildDirectory += "-$GpuArch" }
     if (!$PSBoundParameters.ContainsKey('InstallDirectory')) { $InstallDirectory += "-$GpuArch" }
 }
