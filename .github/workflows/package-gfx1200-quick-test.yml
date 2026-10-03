@@ -102,7 +102,7 @@ jobs:
             @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
             @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
             @{name='START-K-PROFILE-LEGACY.cmd'; arguments='-Preset 11 -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-            @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
