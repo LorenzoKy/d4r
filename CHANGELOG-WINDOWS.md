@@ -2,6 +2,10 @@
 
 ## Test build — 2026-10-03 — RX 9060 XT / gfx1200
 
+### Follow-up diagnostic fix
+- Fixed `START-K-PROFILE.cmd`: `-ProfileGpuBoundary` is now accepted by `quick-test.ps1`, forwarded to the Windows runner, and recorded in the diagnostic manifest.
+- The next profile run is intended to separate input-fence, NGX evaluation, output handling, and D3D12 boundary time instead of relying on the aggregate `interop_ngx_ms` value.
+
 ### Performance path
 - Uses the existing Windows GPU-ordered async interop path for the K release default.
 - Enables batched VRAM input conversions/copies for the K release launcher.
