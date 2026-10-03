@@ -16,7 +16,7 @@ The package detects the real GPU automatically. Do not rename any DLLs.
    The xdfnx-dev public test ZIP does not include them. Other versions are rejected.
    The small _nvngx.dll inside this package is d4r, NOT the original NVIDIA file.
 
-3. DOUBLE-CLICK START-K-OPTIMIZED.cmd. Pick the actual game .exe when asked.
+3. DOUBLE-CLICK START-K.cmd. Pick the actual game .exe when asked.
    If asked, pick your two NVIDIA DLLs. These choices are remembered for the next run.
    Next time, press Enter for the same game, or C to choose another.
    If Steam/Epic is needed, keep it open. Choose a D3D12 game without anti-cheat.
@@ -25,7 +25,11 @@ The package detects the real GPU automatically. Do not rename any DLLs.
 4. IN THE GAME, select DLSS if available, otherwise FSR/XeSS for OptiScaler.
    Leave frame generation OFF. First launch can compile for several minutes.
    Keep the console open. Play for 30 seconds, check the image, then EXIT THE GAME.
-   The two supplied launchers both test DLSS 4 preset K. The PROFILE launcher adds stage/kernel profiling; neither launcher enables per-frame output validation.
+   START-K uses async interop + batched input copies + GPU-ordered D3D12/HIP dependencies.
+   The release intentionally has no M launcher.
+
+4b. START-K-PROFILE uses the same optimized K path but enables stage/deferred-kernel and GPU-boundary profiling;
+   it is substantially slower and is for diagnostics, not FPS measurement.
 
 5. SEND THE SINGLE ZIP shown as "SEND THIS ONE FILE" in the console.
    It is also in the results folder. Tell us your GPU, game, K/M and image result:
@@ -36,7 +40,7 @@ The package detects the real GPU automatically. Do not rename any DLLs.
 TO UNINSTALL: close the game and double-click RESTORE-GAME.cmd.
 Original replaced files are backed up and restored; changed files are preserved.
 Restore the previous game BEFORE choosing a different game for the next test.
-Only use the two supplied K launchers for this candidate, not the usual game shortcut.
+Use START-K for the performance path and START-K-PROFILE only for diagnostics, not the usual game shortcut.
 
 IF SOMETHING FAILS:
 - Wrong NVIDIA DLL: select the exact versions above on the next run.
