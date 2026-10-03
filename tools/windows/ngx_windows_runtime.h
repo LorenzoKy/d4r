@@ -579,8 +579,7 @@ private:
             }
             plane.texture = texture;
             if (i == 3)
-                std::printf("D4R_OUTPUT_PATH requested=%u active=%u spec_direct=%u canonical=%u format=%u
-",
+                std::printf("D4R_OUTPUT_PATH requested=%u active=%u spec_direct=%u canonical=%u format=%u\n",
                     unsigned(std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr), unsigned(outputDirect_),
                     unsigned(spec.direct), unsigned(plane.canonical != nullptr), unsigned(desc.Format));
             d4r_ngx_set_void(parameters_, names[i], &plane.image->object);
