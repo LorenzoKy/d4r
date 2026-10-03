@@ -698,7 +698,13 @@ private:
         }
         auto& output = planes_[3];
         const bool directRequested = outputDirect_ && std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr;
+        static std::atomic<bool> outputPathLogged{false};
+        const bool outputPathFirstLog = !outputPathLogged.exchange(true);
         bool directActive = directRequested && rt_->cuda.outputKernelNative() == 1;
+        if (outputPathFirstLog)
+            std::printf("D4R_OUTPUT_PATH_REQUEST requested=%u active=%u native=%d direct_spec=%u gpu_pipeline=%u\\n",
+                unsigned(directRequested), unsigned(directActive), rt_->cuda.outputKernelNative(),
+                unsigned(output.spec.direct), unsigned(gpuPipeline));
         if (directActive) {
             const uint64_t pitch = output.shared->footprint.Footprint.RowPitch;
             if (pitch > UINT32_MAX) throw std::runtime_error("Direct-output pitch exceeds redirect ABI");
@@ -727,10 +733,14 @@ private:
             mark("ngx_all_stream_completion");
         }
         if (!directActive) {
+            // When GPU-ordered interop is enabled, keep the translated output path asynchronous too.
+            // The copy is enqueued on the same default stream as the DLSS work; the output fence is
+            // signalled below on that stream, so D3D12 cannot consume the resource before the copy finishes.
             output.image->download_device(reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped),
-                output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch);
-            rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "VRAM output completion");
-            mark("output_array_download");
+                output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch, gpuPipeline);
+            if (!gpuPipeline)
+                rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "VRAM output completion");
+            mark(gpuPipeline ? "output_array_download_queued_gpu_ordered" : "output_array_download");
         } else {
             mark("output_array_download_skipped");
         }
