@@ -4,9 +4,10 @@ d4r for Windows: NVIDIA DLSS on AMD Radeon RDNA3 and RDNA4
 d4r runs NVIDIA's own DLSS (DLSS 4 by default) on a Radeon GPU in DirectX 12 games. OptiScaler
 (included) catches the game's upscaler calls and hands them to d4r.
 
-This is an early release. Only the Radeon RX 9070 XT has been tested on real hardware; every other
-GPU in this release is compile-tested. SUPPORTED_GAMES.md in the source repository lists the
-tested games. Expect problems.
+This is an early performance test release focused on the RX 9060 XT / gfx1200 path.
+The gfx1200 K build enables the bank-phase LDS layout candidate and the launcher defaults to
+GPU-ordered async interop plus batched input copies. RX 9060 XT gameplay still requires user validation;
+do not treat compile/fixture checks as proof of final performance or visual correctness.
 
 What you need
 -------------
@@ -38,7 +39,8 @@ Settings
 --------
 Edit d4r\d4r.ini (it is commented) and restart the game. Each game has its own copy.
 - Model: K (DLSS 4, default) or M (DLSS 4.5, heavier). Select the quality mode in the game.
-- AsyncInterop, ValidateOutput, Log: for testing and bug reports; the defaults are the tested setting.
+- AsyncInterop, BatchInputCopies, AsyncGpuPipeline: the K performance-test path; keep them enabled.
+- ValidateOutput and Log: for testing and bug reports.
 OptiScaler's own settings (overlay, render ratios) are in OptiScaler.ini.
 
 If something goes wrong
@@ -49,6 +51,14 @@ If something goes wrong
 - For a bug report run  d4r\d4r-check.ps1 -Report  and send the ZIP it puts on your Desktop,
   with your GPU, the game, the model and what the image looked like. Logs can contain folder names.
 - Not supported: frame generation, ray reconstruction, DirectX 11, Vulkan, models E and L.
+
+Release launchers
+-----------------
+This test ZIP intentionally contains exactly three .cmd files:
+START-K.cmd, START-K-PROFILE.cmd and RESTORE-GAME.cmd.
+START-K uses K + async interop + batched input copies + GPU-ordered fence dependencies.
+START-K-PROFILE uses the same path but adds deferred kernel and D3D12 boundary profiling.
+Do not copy older START-K-ASYNC / START-M / FAST-K launchers into this package.
 
 Uninstall
 ---------
