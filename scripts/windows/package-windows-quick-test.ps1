@@ -64,7 +64,9 @@ $launchers=@(
     @{name='START-K.cmd'; arguments='-Preset 11'},
     @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
     @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
+    @{name='START-K-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
     @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+    @{name='START-K-ASYNC-PROFILE-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
     @{name='START-M.cmd'; arguments='-Preset 13'},
     @{name='RESTORE-GAME.cmd'; arguments='-Action restore'}
 )
