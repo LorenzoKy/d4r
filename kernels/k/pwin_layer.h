@@ -282,7 +282,7 @@ __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, cons
                           op_get(xv, 2 * j + 1) * (half_t)(r16 * op_get(gv, 2 * j + 1)));
         store_row16(hrow + 16 * kt, hv);
     }
-    __builtin_amdgcn_wave_barrier();
+    // Per-wave normalization state is private to each wave until the block sync below.
 #ifdef PWIN_DBG
     if (DBG_ON && !hf)
         for (int c = 0; c < C; ++c)
@@ -463,7 +463,7 @@ __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, cons
         }
         op_store(hrow + 16 * nt, operand_from_dt(mv));
     }
-    __builtin_amdgcn_wave_barrier();
+    // Residual/MLP input is consumed only by the same wave; no cross-wave wait is needed here.
 
     // ---- MLP: C/8 chunks of 32 hidden
     for (int c = 0; c < L::NMLP; ++c)
@@ -505,7 +505,6 @@ __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, cons
     {
         op_store(arow + 16 * nt, operand_from_f8(acc[nt]));
     }
-    __builtin_amdgcn_wave_barrier();
 }
 
 // first layer: token embedding x0 = relu(in (CIN) W_e + b_e) in front of the core (core weights at CB)
