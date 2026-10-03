@@ -173,7 +173,11 @@ jobs:
             }
           }
           Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File | Remove-Item -Force
-          $manifest.files=@($manifest.files | Where-Object { $_.path -notmatch '\.cmd
+          $manifest.files=@($manifest.files | Where-Object { $_.path -notmatch '\\.cmd$' })
+          $launchers=@(
+            @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
+            @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+          )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
             $command='"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" ' + $launch.arguments
