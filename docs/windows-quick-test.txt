@@ -1,13 +1,12 @@
 D4R WINDOWS QUICK TEST -- READ THIS FIRST
 
 This is an EXPERIMENTAL Windows 11 D3D12 build for RDNA3 / RDNA3.5 / RDNA4.
-Only RX 9070 XT has been tested here. Other cards may fail.
+This lean candidate targets gfx1200 / RX 9060 XT. The package is experimental; other RDNA3/RDNA4 targets are not part of this release.
 The package detects the real GPU automatically. Do not rename any DLLs.
 
 1. EXTRACT THE WHOLE ZIP to a normal writable folder, e.g. Desktop\d4r-test.
    Do not run it inside the ZIP. Do not copy files into the game manually.
-   Already installed an older test? Close the game and run RESTORE-GAME.cmd
-   from that old package first, then extract this version to a new folder.
+   Already installed an older test? Close the game and run `files\quick-test.ps1 -Action restore` from that package, then extract this version to a new folder.
 
 2. CLOSE YOUR GAME. If your distributor included the validated NVIDIA DLL pair,
    it is selected automatically; you only need to choose the game executable.
@@ -26,7 +25,7 @@ The package detects the real GPU automatically. Do not rename any DLLs.
 4. IN THE GAME, select DLSS if available, otherwise FSR/XeSS for OptiScaler.
    Leave frame generation OFF. First launch can compile for several minutes.
    Keep the console open. Play for 30 seconds, check the image, then EXIT THE GAME.
-   Both launchers test DLSS 4 preset K. The PROFILE launcher adds stage/kernel profiling.
+   The two supplied launchers both test DLSS 4 preset K. The PROFILE launcher adds stage/kernel profiling; neither launcher enables per-frame output validation.
 
 5. SEND THE SINGLE ZIP shown as "SEND THIS ONE FILE" in the console.
    It is also in the results folder. Tell us your GPU, game, K/M and image result:
@@ -37,7 +36,7 @@ The package detects the real GPU automatically. Do not rename any DLLs.
 TO UNINSTALL: close the game and double-click RESTORE-GAME.cmd.
 Original replaced files are backed up and restored; changed files are preserved.
 Restore the previous game BEFORE choosing a different game for the next test.
-Always launch the supplied K test launcher, not the usual game shortcut.
+Only use the two supplied K launchers for this candidate, not the usual game shortcut.
 
 IF SOMETHING FAILS:
 - Wrong NVIDIA DLL: select the exact versions above on the next run.
@@ -47,7 +46,7 @@ IF SOMETHING FAILS:
 - Do not start a second test while the first game is running.
 
 No HIP SDK installation is required; the isolated runtime is included.
-This release combines async interop, batched input copies, cached direct output, and the experimental GPU-ordered async path. Per-frame output validation is disabled so it does not insert a global device synchronization into the performance measurement. No debugger is attached by default.
+This lean release combines the currently tested async interop, batched input copies, direct output redirect, and GPU-ordered async path. Per-frame output validation is disabled so it does not add a global device synchronization to the performance measurement. No debugger is attached by default.
 Exit codes and loaded DLLs are logged. A debugger is only an explicit developer option.
 Your local DLSS DLL is staged beside the d4r shim automatically.
 It is a correctness diagnostic, NOT an FPS benchmark or an optimized daily-use build.

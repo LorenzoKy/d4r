@@ -142,7 +142,7 @@ try {
     @{architecture=$arch; d4rCommit=$target.binarySourceCommit; packageCommit=$manifest.packageCommit;
       dlssSha256=$target.dlssSha256; hardwareValidation=$target.hardwareValidation; files=$selectedFiles} |
         ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $selectedPackage 'package.json') -Encoding UTF8
-    Write-Host 'Original game files will be backed up. RESTORE-GAME.cmd reverses the installation.'
+    Write-Host 'Original game files will be backed up. Use quick-test.ps1 -Action restore to reverse the installation.'
     Write-Host 'In the game: select DLSS if available; otherwise select FSR/XeSS to let OptiScaler intercept it.'
     Write-Host 'The first launch compiles shaders and can take several minutes. Then play for 30 seconds and EXIT the game normally.'
     & (Join-Path $selectedPackage 'windows-game.ps1') -Action $Action -GameExe $GameExe -NgxCore $NgxCore -DlssDll $DlssDll `
@@ -189,6 +189,6 @@ try {
     Compress-Archive -LiteralPath $output -DestinationPath ($output+'.zip') -Force
     Write-Host "SEND THIS ONE FILE: $output.zip" -ForegroundColor Cyan
     Write-Host 'Also tell us: GPU model, game name, K or M, and whether the image was correct.'
-    Write-Host 'Close the game before running RESTORE-GAME.cmd.'
+    Write-Host 'Close the game before running quick-test.ps1 -Action restore.'
 }
 if ($status.status -eq 'failed' -or $status.status -eq 'backend-checks-failed-or-no-dlss-frames' -or $status.status.StartsWith('inconclusive-')) { exit 1 }

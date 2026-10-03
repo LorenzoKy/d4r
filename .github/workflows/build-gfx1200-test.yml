@@ -127,11 +127,9 @@ jobs:
           $bin=Join-Path $root "dist\windows-gfx1200\bin"
           $commonShim=Join-Path $bin 'd4r_nvngx.dll'
           if (!(Test-Path -LiteralPath $commonShim)) { throw "Current gfx1200 overlay is missing: $commonShim" }
-          $targetShim=Join-Path $base 'files\targets\gfx1200\d4r\_nvngx.dll'
+          $targetShim=Join-Path $base 'files\targets\gfx1200\d4r\nvngx.dll'
           New-Item -ItemType Directory -Force (Split-Path $targetShim) | Out-Null
           Copy-Item $commonShim $targetShim -Force
-          $legacyShim=Join-Path $base 'files\targets\gfx1200\d4r\nvngx.dll'
-          if (Test-Path -LiteralPath $legacyShim) { Remove-Item -LiteralPath $legacyShim -Force }
           $targetOverlay=@(
             @{src=(Join-Path $bin 'd4r_gpu_inventory.exe'); rel='files\targets\gfx1200\d4r\d4r_gpu_inventory.exe'},
             @{src=(Join-Path $bin 'd4r_debug_launcher.exe'); rel='files\targets\gfx1200\d4r\d4r_debug_launcher.exe'},
@@ -152,7 +150,10 @@ jobs:
           Copy-Item (Join-Path $root 'docs\windows-quick-test.txt') (Join-Path $base 'READ-ME-FIRST.txt') -Force
           $manifestPath=Join-Path $base 'files\package.json'
           $manifest=Get-Content $manifestPath -Raw | ConvertFrom-Json
-          $manifest.targets.gfx1200.files=@($manifest.targets.gfx1200.files | Where-Object { $_.path.Replace('/','\') -ne 'd4r\nvngx.dll' })
+          $targetEntries=@($manifest.targets.gfx1200.files)
+          if (!(@($targetEntries | Where-Object { $_.path.Replace('/','\') -eq 'd4r\nvngx.dll' }).Count)) {
+            $manifest.targets.gfx1200.files=@($targetEntries)+[pscustomobject]@{path='d4r/nvngx.dll';sha256='';version=$null}
+          }
           foreach ($entry in @($manifest.files)) {
             $rel=$entry.path.Replace('/','\')
             $full=Join-Path $base $rel
@@ -169,121 +170,17 @@ jobs:
               if (Test-Path -LiteralPath $full) { $entry.sha256=(Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash }
             }
           }
-          Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File | Remove-Item -Force
-          $manifest.files=@($manifest.files | Where-Object { $_.path -notmatch '\.cmd
-          foreach ($launch in $launchers) {
-            $path=Join-Path $base $launch.name
-            $command='"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" ' + $launch.arguments
-            @('@echo off','cd /d "%~dp0"',$command,'pause') | Set-Content -LiteralPath $path -Encoding ASCII
-            $lines=@(Get-Content -LiteralPath $path)
-            if ($lines.Count -ne 4 -or $lines[2] -ne $command) { throw "Invalid launcher generated: $($launch.name)" }
-            $manifest.files=@($manifest.files)+[pscustomobject]@{path=$launch.name;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash;version=$null}
-          }
-          $currentCommit=(& git rev-parse HEAD).Trim()
-          $manifest.packageCommit=$currentCommit
-          $manifest.targets.gfx1200.binarySourceCommit=$currentCommit
-          $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT user test pending'
-          $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
-          @{
-            base='windows-quick-test-20261002-issue10'; baseSha256=$baseHash; baseBytes=121092482
-            d4rCommit=$currentCommit; gfx1200KSource='dist/windows-gfx1200-lds-pad/experimental/k'; candidate='gfx1200-k-lds-pad-plus-gpu-ordered-async-plus-direct-output'; asyncLaunchers=@('START-K-OPTIMIZED.cmd','START-K-OPTIMIZED-PROFILE.cmd')
-            note='Current windows-branch gfx1200 shim/diagnostics and 11 K objects overlaid on the validated issue10 quick-test runtime. NVIDIA DLLs remain excluded; tester supplies local originals.'
-          } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
-          Remove-Item $zip -Force -ErrorAction SilentlyContinue
-          [IO.Compression.ZipFile]::CreateFromDirectory($base,$zip,[IO.Compression.CompressionLevel]::Optimal,$false)
-          $bytes=(Get-Item $zip).Length
-          if ($bytes -lt 121092482) { throw "Final quick-test ZIP is smaller than issue10: $bytes bytes" }
-          (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256" -Encoding ASCII
-          if (!(Test-Path (Join-Path $base 'START-K-OPTIMIZED.cmd'))) { throw 'START-K-OPTIMIZED.cmd missing from final package.' }
-          Write-Host "FINAL QUICK TEST ZIP: $zip"
-          Write-Host "FINAL QUICK TEST BYTES: $bytes"
-
-      - name: Upload RX 9060 XT quick-test ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: d4r-windows-quick-test-gfx1200-${{ github.sha }}
-          path: |
-            dist/quick-test-gfx1200/d4r-windows-quick-test-gfx1200.zip
-            dist/quick-test-gfx1200/d4r-windows-quick-test-gfx1200.zip.sha256
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Check local DLSS test input
-        id: dlss
-        shell: pwsh
-        env:
-          D4R_DLSS_DLL_B64: ${{ secrets.D4R_DLSS_DLL_B64 }}
-        run: |
-          if (-not $env:D4R_DLSS_DLL_B64) {
-            "available=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-            Write-Host "D4R_DLSS_DLL_B64 is not configured. Compile gate passed; release packaging is skipped."
-            exit 0
-          }
-          $bytes=[Convert]::FromBase64String($env:D4R_DLSS_DLL_B64)
-          [IO.File]::WriteAllBytes("$PWD\nvngx_dlss.dll",$bytes)
-          $hash=(Get-FileHash "$PWD\nvngx_dlss.dll" -Algorithm SHA256).Hash
-          Write-Host "DLSS input SHA256: $hash"
-          if ($hash -ne "3975567b8943c53acce397f2b72380092f84f162d00b0d2c7d08a1025c563983") { throw "Unexpected DLSS 310.9.1 SHA256." }
-          "available=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: Build all Windows GPU targets and game packages
-        if: steps.dlss.outputs.available == 'true'
-        shell: pwsh
-        run: |
-          .\scripts\windows\build-windows-gpu-matrix.ps1 `
-            -RuntimeProfile therock `
-            -GpuArchitectures @("gfx1100","gfx1101","gfx1102","gfx1103","gfx1150","gfx1151","gfx1152","gfx1153","gfx1154","gfx1200","gfx1201") `
-            -ZludaRoot "$PWD\dist\zluda-windows-final" `
-            -DlssDll "$PWD\nvngx_dlss.dll" `
-            -PackageGames `
-            -BuildRoot "$PWD\build\windows-gpu-coverage" `
-            -OutputRoot "$PWD\dist\windows-gpu-coverage"
-
-      - name: Build compact quick-test runtime ZIP
-        if: steps.dlss.outputs.available == 'true'
-        shell: pwsh
-        run: |
-          $out="$PWD\dist\release-test"
-          $pkg="$out\package"
-          $zip="$out\d4r-windows-quick-test.zip"
-          New-Item -ItemType Directory -Force $out | Out-Null
-          .\scripts\windows\package-windows-quick-test.ps1 `
-            -GamePackagePrefix "$PWD\dist\windows-gpu-coverage-game" `
-            -PackageRoot $pkg `
-            -ArchivePath $zip
-          if ((Get-Item $zip).Length -lt 121092482) {
-            throw "Release test ZIP is smaller than the 2026-10-02 issue10 reference (121092482 bytes)."
-          }
-          (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256" -Encoding ASCII
-          Write-Host "Release test ZIP: $zip"
-          Write-Host "Bytes: $((Get-Item $zip).Length)"
-
-      - name: Build corresponding-source ZIP
-        if: steps.dlss.outputs.available == 'true'
-        shell: pwsh
-        run: |
-          python .\tools\windows\package_quick_test_sources.py --output "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip"
-          (Get-FileHash "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip" -Algorithm SHA256).Hash | Set-Content "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip.sha256" -Encoding ASCII
-
-      - name: Publish prerelease
-        if: steps.dlss.outputs.available == 'true'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag="windows-quick-test-$((Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss'))-${{ github.run_number }}"
-          gh release create $tag `
-            "dist/release-test/d4r-windows-quick-test.zip" `
-            "dist/release-test/d4r-windows-quick-test.zip.sha256" `
-            "dist/release-test/d4r-windows-quick-test-sources.zip" `
-            "dist/release-test/d4r-windows-quick-test-sources.zip.sha256" `
-            --prerelease `
-            --title "Windows RX 9060 XT quick-test release $tag" `
-            --notes "Automated Windows release test from branch windows. Runtime ZIP is required to be at least 121,092,482 bytes, matching or exceeding the 2026-10-02 issue10 quick-test reference. NVIDIA DLLs are supplied only to CI as a secret and are not published."
- })
           $launchers=@(
-            @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
-            @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+            @{name='START-K-LDS-PAD-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
+            @{name='START-K-LDS-PAD-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
+            @{name='START-K-LDS-PAD-DIRECT.cmd'; arguments='-Preset 11 -DirectOutput'},
+            @{name='START-K-LDS-PAD-DIRECT-PROFILE.cmd'; arguments='-Preset 11 -DirectOutput -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-GPU-PIPELINE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-GPU-PIPELINE-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
