@@ -5,7 +5,7 @@
 
 template <class L, int MT>
 __device__ void pos_core(const PwinParams& p, const u8v* __restrict__ img, const u4v* __restrict__ bias,
-                         half_t (* __restrict__ act)[L::C], half_t (* __restrict__ hb)[L::C])
+                         half_t (*act)[L::C], half_t (*hb)[L::C])
 {
     constexpr int C = L::C, KT = L::KT, H = L::H, NW = 4 / MT;
     static_assert(MT == 1 || MT == 2 || MT == 4, "position token tiles per wave");
