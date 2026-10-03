@@ -624,8 +624,17 @@ private:
         const bool directOutput = std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr;
         auto& output = planes_[3];
         if (directOutput) {
-            const uintptr_t target = reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped);
-            const uint64_t pitch = output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch;
+            // tex_common's R2 redirect fast-path is intentionally limited to the
+            // native K RGBA16F surface layout. Never redirect other output formats.
+            if (!output.spec.direct || output.spec.storage != pixel::rgba16f || !output.canonical) {
+                // RGBA16F output should be direct and therefore have no canonical
+                // allocation. Any other shape is rejected explicitly below.
+            }
+            if (output.spec.storage != pixel::rgba16f || output.canonical) {
+                throw std::runtime_error("Direct-output requires a direct RGBA16F K output");
+            }
+            const uintptr_t target = reinterpret_cast<uintptr_t>(output.shared->mapped);
+            const uint64_t pitch = output.shared->footprint.Footprint.RowPitch;
             if (pitch > UINT32_MAX) throw std::runtime_error("Direct-output pitch exceeds redirect ABI");
             output.image->set_redirect(static_cast<CUdeviceptr>(target), static_cast<uint32_t>(pitch));
             outputDirect_ = true;
