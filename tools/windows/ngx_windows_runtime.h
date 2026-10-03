@@ -224,6 +224,9 @@ class Feature {
     std::thread worker_;
     bool worker_stop_ = false, worker_active_ = false;
     std::string worker_failure_;
+    // When enabled explicitly, the native K Hiluma output surface writes
+    // directly into the shared/canonical linear output buffer.
+    bool outputDirect_ = false;
     struct Plane {
         ComPtr<ID3D12Resource> texture;
         D3D12_RESOURCE_DESC desc{};
@@ -617,17 +620,31 @@ private:
                 std::printf("D4R_ARRAY_VERIFY plane=%u first=%08x\n", i, first);
             }
         }
+        outputDirect_ = false;
+        const bool directOutput = std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr;
+        auto& output = planes_[3];
+        if (directOutput) {
+            const uintptr_t target = reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped);
+            const uint64_t pitch = output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch;
+            if (pitch > UINT32_MAX) throw std::runtime_error("Direct-output pitch exceeds redirect ABI");
+            output.image->set_redirect(static_cast<CUdeviceptr>(target), static_cast<uint32_t>(pitch));
+            outputDirect_ = true;
+            mark("output_direct_redirect");
+        }
         ngx_check(rt_->evaluate(handle_, parameters_, nullptr), "CUDA EvaluateFeature");
         mark("ngx_evaluate_host");
         // NGX can use internal nonblocking streams. The default stream alone
         // does not establish completion of those streams.
         rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "NGX all-stream completion");
         mark("ngx_all_stream_completion");
-        auto& output = planes_[3];
-        output.image->download_device(reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped),
-            output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch);
-        rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "VRAM output completion");
-        mark("output_array_download");
+        if (!outputDirect_) {
+            output.image->download_device(reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped),
+                output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch);
+            rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "VRAM output completion");
+            mark("output_array_download");
+        } else {
+            mark("output_array_download_skipped");
+        }
         if (std::getenv("D4R_VALIDATE_OUTPUT")) {
             if (!rt_->pixels) rt_->pixels = std::make_unique<PixelProgram>(rt_->hip, pixel_module_path());
             const auto counts = rt_->pixels->validate(output.canonical ? output.canonical->data : output.shared->mapped,
