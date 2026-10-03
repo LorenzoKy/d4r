@@ -1,6 +1,6 @@
 # Windows Test Release Changelog
 
-## Unreleased — RX 9060 XT / gfx1200 test
+## Test build — 2026-10-03 — RX 9060 XT / gfx1200
 
 ### Performance path
 - Uses the existing Windows async interop path as the K release default.
