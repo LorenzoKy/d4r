@@ -59,7 +59,9 @@ $launcherExpectations=@{
     'START-K.cmd'='-Preset 11';
     'START-K-PROFILE.cmd'='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17';
     'START-K-ASYNC.cmd'='-Preset 11 -AsyncInterop';
+    'START-K-ASYNC-BATCH.cmd'='-Preset 11 -AsyncInterop -BatchInputCopies';
     'START-K-ASYNC-PROFILE.cmd'='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17';
+    'START-K-ASYNC-PROFILE-BATCH.cmd'='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17';
     'START-M.cmd'='-Preset 13';
     'RESTORE-GAME.cmd'='-Action restore'
 }
