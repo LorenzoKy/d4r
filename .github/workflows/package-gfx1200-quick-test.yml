@@ -79,6 +79,7 @@ jobs:
           Copy-Item (Join-Path $root 'scripts/windows/quick-test.ps1') (Join-Path $base 'files/quick-test.ps1') -Force
           Copy-Item (Join-Path $root 'tools/windows/gpu-targets.json') (Join-Path $base 'files/common/gpu-targets.json') -Force
           Copy-Item (Join-Path $root 'docs/windows-quick-test.txt') (Join-Path $base 'READ-ME-FIRST.txt') -Force
+          Copy-Item (Join-Path $root 'CHANGELOG-WINDOWS.md') (Join-Path $base 'CHANGELOG-WINDOWS.md') -Force
           Copy-Item (Join-Path $root 'scripts/windows/d4r-check.ps1') (Join-Path $base 'files/common/d4r-check.ps1') -Force
           $manifestPath=Join-Path $base 'files/package.json'
           $manifest=Get-Content $manifestPath -Raw | ConvertFrom-Json
@@ -99,6 +100,8 @@ jobs:
             }
           }
           $commit=(& git rev-parse HEAD).Trim()
+          $manifest.files=@($manifest.files | Where-Object { $_.path -ne 'CHANGELOG-WINDOWS.md' })
+          $manifest.files += [pscustomobject]@{path='CHANGELOG-WINDOWS.md';sha256=(Get-FileHash (Join-Path $base 'CHANGELOG-WINDOWS.md') -Algorithm SHA256).Hash;version=$null}
           $manifest.packageCommit=$commit
           $manifest.targets.gfx1200.binarySourceCommit=$commit
           $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT lean optimized user test pending'
@@ -106,8 +109,8 @@ jobs:
           Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File | Remove-Item -Force
           $manifest.files=@($manifest.files | Where-Object { $_.path -notlike '*.cmd' })
           $launchers=@(
-            @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs'},
-            @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+            @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs'},
+            @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -ProfileGpuBoundary -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
@@ -129,7 +132,10 @@ jobs:
           [IO.Compression.ZipFile]::CreateFromDirectory($base,$zip,[IO.Compression.CompressionLevel]::Optimal,$false)
           $bytes=(Get-Item $zip).Length
           if ($bytes -lt 121092482) { throw "Final ZIP is smaller than issue10: $bytes bytes" }
-          if (!(Test-Path (Join-Path $base 'START-K-OPTIMIZED.cmd')) -or !(Test-Path (Join-Path $base 'START-K-OPTIMIZED-PROFILE.cmd'))) { throw 'Optimized K launchers missing.' }
+          $cmdFiles=@(Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File)
+          if ($cmdFiles.Count -ne 3 -or @($cmdFiles.Name | Where-Object { $_ -notin @('START-K.cmd','START-K-PROFILE.cmd','RESTORE-GAME.cmd') }).Count) {
+            throw 'Final package must contain exactly START-K.cmd, START-K-PROFILE.cmd and RESTORE-GAME.cmd.'
+          }
           Write-Host "FINAL QUICK TEST ZIP: $zip"
           Write-Host "FINAL QUICK TEST BYTES: $bytes"
           $sha=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
