@@ -6,7 +6,7 @@ The package detects the real GPU automatically. Do not rename any DLLs.
 
 1. EXTRACT THE WHOLE ZIP to a normal writable folder, e.g. Desktop\d4r-test.
    Do not run it inside the ZIP. Do not copy files into the game manually.
-   Already installed an older test? Close the game and run `files\quick-test.ps1 -Action restore` from that package, then extract this version to a new folder.
+   Already installed an older test? Close the game and double-click RESTORE-GAME.cmd in that old package, then extract this version to a new folder.
 
 2. CLOSE YOUR GAME. If your distributor included the validated NVIDIA DLL pair,
    it is selected automatically; you only need to choose the game executable.
