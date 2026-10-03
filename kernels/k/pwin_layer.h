@@ -599,11 +599,13 @@ __device__ void pwin_encoder(const PwinParams& p0, const u8v* __restrict__ img, 
     const int my = m >> 2, mx = m & 3;
     const int Ym = (8 * by - p.sy) / 2 + my, Xm = (8 * bx - p.sx) / 2 + mx;
     const bool minb = Ym >= 0 && Ym < p.H / 2 && Xm >= 0 && Xm < p.W / 2;
-    half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * COUT;
-    const uint8_t* w = p.w;
-    for (int vt = wv; vt < L::PMT; vt += 4)
+    if (minb)
     {
-        acc8v d;
+        half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * COUT;
+        const uint8_t* w = p.w;
+        for (int vt = wv; vt < L::PMT; vt += 4)
+        {
+            acc8v d;
 {
 
     half_t vv_[8];
@@ -626,7 +628,8 @@ __device__ void pwin_encoder(const PwinParams& p0, const u8v* __restrict__ img, 
         }
         // allocated column 16 vt + c belongs to original warp g, local column 16 u + c
         const int g = vt / (L::NPA / 16), u = vt % (L::NPA / 16), valid = L::NPW - 16 * u;
-        op_gstore(mout + L::NPW * g + 16 * u, operand_from_f8(d), minb, valid);
+            op_gstore(mout + L::NPW * g + 16 * u, operand_from_f8(d), true, valid);
+        }
     }
 }
 
@@ -786,6 +789,8 @@ __device__ void pwin_decoder(const PwinParams& p, const u8v* __restrict__ img, c
     const bool inb = Y0 >= 0 && Y0 < p.H && X0 >= 0 && X0 < p.W;
     if constexpr (L::NOUTA != 0)
     {
+        if (!inb)
+            return;
         half_t* hout = (half_t*)p.out24 + (size_t)(Y0 * p.W + X0) * L::NOUT;
 #pragma unroll
         for (int nt = 0; nt < L::NOUTA / 16; ++nt)
@@ -807,7 +812,7 @@ __device__ void pwin_decoder(const PwinParams& p, const u8v* __restrict__ img, c
 #pragma unroll
             for (int kt = 0; kt < L::KT; ++kt)
                 d = mma16(op_img(img, (L::T_HEAD + kt * (L::NOUTA / 16) + nt) * 16 + m), op_lds(&act[tok][16 * kt]), d);
-            op_gstore(hout + 16 * nt, operand_from_f8(d), inb, L::NOUT - 16 * nt);
+            op_gstore(hout + 16 * nt, operand_from_f8(d), true, L::NOUT - 16 * nt);
         }
     }
     else if (inb)
