@@ -109,7 +109,8 @@ jobs:
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
-            @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" '+$launch.arguments,'pause') | Set-Content $path -Encoding ASCII
+            $command='"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" ' + [string]$launch.arguments
+            @('@echo off','cd /d "%~dp0"',$command,'pause') | Set-Content $path -Encoding ASCII
             $manifest.files += @{path=$launch.name;sha256=(Get-FileHash $path -Algorithm SHA256).Hash;version=$null}
           }
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
