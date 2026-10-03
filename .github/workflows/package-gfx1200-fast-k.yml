@@ -102,7 +102,9 @@ jobs:
           $launchers=@(
             @{name='START-K-FAST.cmd'; arguments='-Preset 11'},
             @{name='START-K-FAST-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
+            @{name='START-K-FAST-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
             @{name='START-K-FAST-PROFILE-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-FAST-PROFILE-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
             @{name='START-K-PROFILE-LEGACY.cmd'; arguments='-Preset 11 -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
