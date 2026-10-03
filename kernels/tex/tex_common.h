@@ -317,8 +317,15 @@ __attribute__((device)) static inline bool redirect_inside(uint64_t surface, int
 DEV __attribute__((always_inline)) void d4r_sust_p_v4b32(uint64_t surface, int32_t x, int32_t y, uint32_t a, uint32_t b,
                                                         uint32_t c, uint32_t d)
 {
+#if defined(D4R_DIRECT_OUTPUT_FAST)
+    // The fast private output objects are built only for the Windows K RGBA16F
+    // direct-output path. The runtime validates that contract before redirecting
+    // the surface, so the per-store CUDA-format descriptor load/check is redundant.
+    if (redirect_pitch(surface) != 0)
+#else
     const uint32_t format0 = ((const __attribute__((address_space(4))) uint32_t*)surface)[20];
     if (redirect_pitch(surface) != 0 && format0 != 80 && !(format0 >= 192 && format0 <= 203))
+#endif
     {
         // RGBA16F: the f32 values as halves, rounded toward zero like the image store's format conversion
         if (redirect_inside(surface, x, y))
