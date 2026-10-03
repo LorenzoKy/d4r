@@ -22,7 +22,8 @@ struct IniEntry { std::string section, key, value; };
 struct Pin { std::string kind, sha256, version, status; };
 struct Settings {
     unsigned preset = 11; // K
-    bool asyncInterop = false, validateOutput = false, verbose = false, showWatermark = false;
+    bool asyncInterop = true, batchInputCopies = true, asyncGpuPipeline = true;
+    bool validateOutput = false, verbose = false, showWatermark = false;
     std::wstring cacheDir;
 };
 struct State {
@@ -252,6 +253,8 @@ inline void apply(const std::filesystem::path& dir, const Settings& settings) {
         {L"D4R_QUIET_API", settings.verbose ? unset : on},
         {L"D4R_VALIDATE_OUTPUT", settings.validateOutput ? on : unset},
         {L"D4R_ASYNC_INTEROP", settings.asyncInterop ? on : unset},
+        {L"D4R_BATCH_INPUT_COPIES", (settings.asyncInterop && settings.batchInputCopies) ? on : unset},
+        {L"D4R_ASYNC_GPU_PIPELINE", (settings.asyncInterop && settings.asyncGpuPipeline) ? on : unset},
         {L"D4R_SHIM_WATERMARK", settings.showWatermark ? on : unset},
         {L"D4R_PROFILE_STAGES", unset}, {L"D4R_ZLUDA_PROFILE", unset}, {L"D4R_ZLUDA_PROFILE_DEFERRED", unset},
         {L"D4R_ZLUDA_PROFILE_ALLOW_LEGACY", unset}, {L"D4R_ZLUDA_PROFILE_EVERY", unset},
@@ -289,8 +292,9 @@ inline void ensure_environment() {
             verify_code_objects(dir);
             apply(dir, settings);
             current.active = true; current.preset = settings.preset;
-            std::fprintf(stderr, "d4r: player mode, model=%s validate=%u async=%u log=%s, architecture=%s\n",
+            std::fprintf(stderr, "d4r: player mode, model=%s validate=%u async=%u batch=%u gpu_pipeline=%u log=%s, architecture=%s\n",
                 settings.preset == 13 ? "M" : "K", unsigned(settings.validateOutput), unsigned(settings.asyncInterop),
+                unsigned(settings.batchInputCopies), unsigned(settings.asyncGpuPipeline && settings.asyncInterop),
                 settings.verbose ? "verbose" : "normal", diag::HipApi::target_arch());
         } catch (const std::exception& error) { failure = error.what(); }
         for (const auto& note : state().notes) std::fprintf(stderr, "d4r: %s\n", note.c_str());
