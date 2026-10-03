@@ -26,7 +26,7 @@ template <class L, int NG> struct WideDims
 // Core for one window. On entry R holds x0 (64 x C); on return hb holds the block output y.
 template <class L, int NG>
 __device__ void wide_core(const PwinParams& p, const u8v* __restrict__ img, const u4v* __restrict__ bias,
-                          half_t (* __restrict__ hb)[L::C], uint8_t* __restrict__ R)
+                          half_t (*hb)[L::C], uint8_t* R)
 {
     using D = WideDims<L, NG>;
     constexpr int C = L::C, KT = L::KT, H = L::H, NTL = D::NTL;
