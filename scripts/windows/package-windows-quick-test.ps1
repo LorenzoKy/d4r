@@ -60,7 +60,7 @@ $entry=Stage (Join-Path $repo 'tools/windows/gpu-targets.json') 'files/common/gp
 $common+=@{path='gpu-targets.json'; sha256=$entry.sha256; version=$entry.version}
 [void](Stage (Join-Path $PSScriptRoot 'quick-test.ps1') 'files/quick-test.ps1')
 [void](Stage (Join-Path $repo 'docs/windows-quick-test.txt') 'READ-ME-FIRST.txt')
-foreach ($launch in @(@{name='START-K.cmd'; arguments='-Preset 11'},@{name='START-M.cmd'; arguments='-Preset 13'},@{name='RESTORE-GAME.cmd'; arguments='-Action restore'})) {
+foreach ($launch in @(@{name='START-K.cmd'; arguments='-Preset 11'},@{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},@{name='START-M.cmd'; arguments='-Preset 13'},@{name='RESTORE-GAME.cmd'; arguments='-Action restore'})) {
     $path=Join-Path $PackageRoot $launch.name
     @('@echo off','cd /d "%~dp0"',('"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" '+$launch.arguments),'pause') |
         Set-Content -LiteralPath $path -Encoding ASCII
