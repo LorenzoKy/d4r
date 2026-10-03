@@ -602,7 +602,7 @@ private:
         // HIP conversion and CUDA array copies are ordered on the shared
         // legacy default stream. Retain an all-stream completion before NGX,
         // including any internal nonblocking streams it might choose to use.
-        if (batchInputs) rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "Interop input batch completion");
+        if (batchInputs) rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "Interop input batch completion");
         mark("input_conversion_array_upload");
         if (std::getenv("D4R_INTEROP_VERIFY")) {
             for (unsigned i : {0u, 1u, 2u, 4u}) if (planes_[i].texture) {
@@ -626,7 +626,7 @@ private:
         auto& output = planes_[3];
         output.image->download_device(reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped),
             output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch);
-        rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "VRAM output completion");
+        rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "VRAM output completion");
         mark("output_array_download");
         if (std::getenv("D4R_VALIDATE_OUTPUT")) {
             if (!rt_->pixels) rt_->pixels = std::make_unique<PixelProgram>(rt_->hip, pixel_module_path());
