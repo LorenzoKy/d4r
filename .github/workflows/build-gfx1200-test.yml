@@ -87,9 +87,13 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression,System.IO.Compression.FileSystem
           [IO.Compression.ZipFile]::ExtractToDirectory($baseZip,$base)
           $currentK=Join-Path $root "dist\windows-gfx1200\experimental\k"
-          foreach ($src in Get-ChildItem $currentK -Filter '*.hsaco') {
-            $dest=Get-ChildItem $base -Recurse -File -Filter $src.Name | Select-Object -First 1
-            if (!$dest) { throw "Base quick-test has no target object $($src.Name)" }
+          $targetK=Join-Path $base 'files\targets\gfx1200\d4r\native'
+          if (!(Test-Path -LiteralPath $targetK)) { throw 'Base quick-test gfx1200 native kernel directory is missing.' }
+          foreach ($src in Get-ChildItem $currentK -Filter 'dltss_pwin_*_layer_gfx1200.hsaco') {
+            if ($src.Name -notmatch '^dltss_pwin_(.+)_layer_gfx1200\.hsaco$') { throw "Unexpected K object name: $($src.Name)" }
+            $layer=$Matches[1]
+            $dest=Get-ChildItem $targetK -File -Filter ("dltss_pwin_"+$layer+"_layer*.hsaco") | Select-Object -First 1
+            if (!$dest) { throw "Base quick-test has no gfx1200 K object for $layer" }
             Copy-Item $src.FullName $dest.FullName -Force
           }
           $bin=Join-Path $root "dist\windows-gfx1200\bin"
