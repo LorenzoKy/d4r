@@ -86,12 +86,12 @@ set(native_objects)
 option(D4R_K_FP16_BASELINE "Round every K16 accumulation step like NVIDIA f16 WMMA" ON)
 option(D4R_K_PACKED_ACC "Store rounded gfx12 K accumulators as f16 between WMMA steps to reduce VGPR pressure" OFF)
 set(D4R_K_GFX1200_LDS_PAD_DEFAULT OFF)
-if(D4R_GPU_ARCH STREQUAL "gfx1200") {
+if(D4R_GPU_ARCH STREQUAL "gfx1200")
   # RX 9060 XT / gfx1200: use the bank-phase layout validated by the
   # static 64-bank model. Keep gfx1201 on the existing layout until its
   # own measurements say otherwise.
   set(D4R_K_GFX1200_LDS_PAD_DEFAULT ON)
-}
+endif()
 option(D4R_K_GFX1200_LDS_PAD "Use the gfx1200 K LDS bank-phase padding" ${D4R_K_GFX1200_LDS_PAD_DEFAULT})
 option(D4R_M_FP16_BASELINE "Preserve M e4m3 quantisation and f16 accumulation per K32" ON)
 foreach(family k m)
