@@ -63,8 +63,8 @@ $common+=@{path='gpu-targets.json'; sha256=$entry.sha256; version=$entry.version
 [void](Stage (Join-Path $repo 'CHANGELOG-WINDOWS.md') 'CHANGELOG-WINDOWS.md')
 $launchers=@(
     # Release test surface: exactly three CMD files.
-    @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs'},
-    @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -AsyncGpuPipeline -LinearInputs -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -ProfileCommandHooks -ProfileCudaApi -ProfileGpuBoundary -KernelProfileEvery 17'}
+    @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
+    @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -ProfileCommandHooks -ProfileCudaApi -ProfileGpuBoundary -KernelProfileEvery 17'}
 )
 foreach ($launch in $launchers) {
     $path=Join-Path $PackageRoot $launch.name
