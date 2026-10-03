@@ -1,42 +1,84 @@
-name: Build RX 9060 XT test
+name: Build Windows RX 9060 XT release test
 
 on:
   push:
-    branches: [windows-rdna4-9060xt-opt]
+    branches: [windows]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build-gfx1200:
+  release-test:
     runs-on: windows-latest
     steps:
-      - name: Checkout test branch
+      - name: Checkout Windows branch
         uses: actions/checkout@v4
         with:
-          ref: windows-rdna4-9060xt-opt
+          ref: windows
           submodules: recursive
 
       - name: Prepare Windows build tools
         shell: pwsh
         run: .\scripts\windows\setup-windows-tools.ps1 -RuntimeProfile therock
 
-      - name: Build gfx1200
+      - name: Materialize local DLSS test input
+        shell: pwsh
+        env:
+          D4R_DLSS_DLL_B64: ${{ secrets.D4R_DLSS_DLL_B64 }}
+        run: |
+          if (-not $env:D4R_DLSS_DLL_B64) { throw "D4R_DLSS_DLL_B64 repository secret is required; NVIDIA DLLs are never committed or published." }
+          $bytes=[Convert]::FromBase64String($env:D4R_DLSS_DLL_B64)
+          [IO.File]::WriteAllBytes("$PWD\nvngx_dlss.dll",$bytes)
+          $hash=(Get-FileHash "$PWD\nvngx_dlss.dll" -Algorithm SHA256).Hash
+          Write-Host "DLSS input SHA256: $hash"
+          if ($hash -ne "3975567b8943c53acce397f2b72380092f84f162d00b0d2c7d08a1025c563983") { throw "Unexpected DLSS 310.9.1 SHA256." }
+
+      - name: Build all Windows GPU targets and game packages
         shell: pwsh
         run: |
-          .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -BuildDirectory "$PWD\build\windows-gfx1200" -InstallDirectory "$PWD\dist\windows-gfx1200"
+          .\scripts\windows\build-windows-gpu-matrix.ps1 `
+            -RuntimeProfile therock `
+            -GpuArchitectures @("gfx1100","gfx1101","gfx1102","gfx1103","gfx1200","gfx1201") `
+            -ZludaRoot "$PWD\dist\zluda-windows-final" `
+            -DlssDll "$PWD\nvngx_dlss.dll" `
+            -PackageGames `
+            -BuildRoot "$PWD\build\windows-gpu-coverage" `
+            -OutputRoot "$PWD\dist\windows-gpu-coverage"
 
-      - name: Package test artifact
+      - name: Build compact quick-test runtime ZIP
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist\d4r-windows-gfx1200-test | Out-Null
-          Copy-Item dist\windows-gfx1200\* dist\d4r-windows-gfx1200-test -Recurse -Force
-          Copy-Item docs\windows-gpu-support.md dist\d4r-windows-gfx1200-test\README-gfx1200.md
-          Copy-Item docs\windows-performance.md dist\d4r-windows-gfx1200-test\windows-performance.md
-          Get-ChildItem dist\d4r-windows-gfx1200-test -Recurse | Select-Object FullName,Length
+          $out="$PWD\dist\release-test"
+          $pkg="$out\package"
+          $zip="$out\d4r-windows-quick-test.zip"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          .\scripts\windows\package-windows-quick-test.ps1 `
+            -GamePackagePrefix "$PWD\dist\windows-gpu-coverage-game" `
+            -PackageRoot $pkg `
+            -ArchivePath $zip
+          if ((Get-Item $zip).Length -lt 121092482) { throw "Release test ZIP is smaller than the 2026-10-02 issue10 reference (121092482 bytes)." }
+          (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256" -Encoding ASCII
+          Write-Host "Release test ZIP: $zip"
+          Write-Host "Bytes: $((Get-Item $zip).Length)"
 
-      - name: Upload test build
-        uses: actions/upload-artifact@v4
-        with:
-          name: d4r-windows-gfx1200-test
-          path: dist/d4r-windows-gfx1200-test
-          if-no-files-found: error
-          retention-days: 14
+      - name: Build corresponding-source ZIP
+        shell: pwsh
+        run: |
+          python .\tools\windows\package_quick_test_sources.py --output "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip"
+          (Get-FileHash "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip" -Algorithm SHA256).Hash | Set-Content "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip.sha256" -Encoding ASCII
+
+      - name: Publish prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag="windows-quick-test-$((Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss'))-${{ github.run_number }}"
+          gh release create $tag `
+            "dist/release-test/d4r-windows-quick-test.zip" `
+            "dist/release-test/d4r-windows-quick-test.zip.sha256" `
+            "dist/release-test/d4r-windows-quick-test-sources.zip" `
+            "dist/release-test/d4r-windows-quick-test-sources.zip.sha256" `
+            --prerelease `
+            --title "Windows RX 9060 XT quick-test release $tag" `
+            --notes "Automated Windows release test from branch windows. Runtime ZIP is required to be at least 121,092,482 bytes, matching or exceeding the 2026-10-02 issue10 quick-test reference. NVIDIA DLLs are supplied only to CI as a secret and are not published."
