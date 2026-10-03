@@ -57,6 +57,7 @@ Release launchers
 This test ZIP intentionally contains exactly three .cmd files:
 START-K.cmd, START-K-PROFILE.cmd and RESTORE-GAME.cmd.
 START-K uses K + async interop + batched input copies + GPU-ordered fence dependencies.
+Translated output copies are also queued asynchronously on the GPU-ordered path; direct output still requires a matching native texture-kernel override.
 START-K-PROFILE uses the same path but adds deferred kernel and D3D12 boundary profiling.
 Do not copy older START-K-ASYNC / START-M / FAST-K launchers into this package.
 
