@@ -362,7 +362,7 @@ __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, cons
                     for (int i = 0; i < 8; ++i)
                         vt[16 * nt + wm_acc_row(i)][16 * wv + m] = (half_t)d[i];
                 }
-            }f
+            }
         block_sync();
         half_t e[4][8];
         float rs = 0.0f;
