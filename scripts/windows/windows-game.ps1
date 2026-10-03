@@ -86,7 +86,11 @@ if ($LocalTextureKernels) {
         throw 'Local texture kernels must pass test-native-texture.ps1 with the exact packaged DLSS identity.'
     }
     foreach ($object in $validation.source.objects.PSObject.Properties) {
-        if ($object.Name -notin @('hiluma_engine_output_depthinv_mvlo_hdr_max_v2_rel.hsaco','hiluma_engine_output_depthreg_mvhi_ldr_max_v2_rel.hsaco')) {
+        if ($object.Name -notin @(
+            'hiluma_engine_output_depthinv_mvlo_hdr_max_v2_rel.hsaco',
+            'hiluma_engine_output_depthreg_mvhi_ldr_max_v2_rel.hsaco',
+            'hiluma_engine_input_depthinv_mvlo_hdr_v2_rel.hsaco',
+            'hiluma_engine_input_depthreg_mvhi_ldr_v2_rel.hsaco')) {
             throw "Unvalidated local texture variant: $($object.Name)"
         }
         $path=Join-Path $LocalTextureKernels $object.Name
@@ -94,15 +98,19 @@ if ($LocalTextureKernels) {
         Assert-D4RCodeObjectTarget $path $GpuArch
         $textureFiles+=Get-Item -LiteralPath $path
     }
-    if ($textureFiles.Count -ne 2) { throw 'Expected both validated local K output variants.' }
+    $hasOutput = @($textureFiles | Where-Object { $_.Name -like 'hiluma_engine_output_*' }).Count -gt 0
+    $hasInput = @($textureFiles | Where-Object { $_.Name -like 'hiluma_engine_input_*' }).Count -gt 0
+    if (!$hasOutput) { throw 'Local texture validation must include at least one K output variant.' }
+    if ($textureFiles.Count -gt 4) { throw 'Too many local K texture variants.' }
     # Use the manifest covered by validation, rather than a mutable extra file.
     foreach ($line in Get-Content -LiteralPath (Join-Path $LocalTextureKernels 'd4r-kernels.txt')) {
         if (!$line.Trim() -or $line.StartsWith('#')) { continue }
         if ($line -notmatch '^([A-Za-z0-9_]+) ([0-9a-f]{16})$' -or ($Matches[1]+'.hsaco') -notin @($textureFiles.Name)) { throw 'Invalid local texture manifest.' }
         $textureManifest+=$line
     }
-    if ($textureManifest.Count -ne 2) { throw 'Expected two local texture manifest identities.' }
+    if ($textureManifest.Count -ne $textureFiles.Count) { throw 'Local texture manifest does not cover every selected texture object.' }
     if ((Get-FileHash -LiteralPath (Join-Path $LocalTextureKernels 'd4r-kernels.txt') -Algorithm SHA256).Hash.ToLowerInvariant() -ne $validation.manifestSha256) { throw 'Local texture manifest changed after validation.' }
+    Write-Host ("Validated local K texture variants: output={0}, input={1}, total={2}" -f $hasOutput, $hasInput, $textureFiles.Count)
 }
 $manifest = if (Test-Path -LiteralPath $manifestPath) { Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{game=$GameExe; files=@()} }
 if ($manifest.game -ne $GameExe) { throw 'Backup manifest belongs to another executable.' }
