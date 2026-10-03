@@ -61,13 +61,9 @@ $common+=@{path='gpu-targets.json'; sha256=$entry.sha256; version=$entry.version
 [void](Stage (Join-Path $PSScriptRoot 'quick-test.ps1') 'files/quick-test.ps1')
 [void](Stage (Join-Path $repo 'docs/windows-quick-test.txt') 'READ-ME-FIRST.txt')
 $launchers=@(
-    @{name='START-K.cmd'; arguments='-Preset 11'},
-    @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
-    @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
-    @{name='START-K-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
-    @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-    @{name='START-K-ASYNC-PROFILE-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-    @{name='START-M.cmd'; arguments='-Preset 13'},
+    # Release test surface: exactly three CMD files.
+    @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -AsyncGpuPipeline'},
+    @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -ProfileGpuBoundary -KernelProfileEvery 17'},
     @{name='RESTORE-GAME.cmd'; arguments='-Action restore'}
 )
 foreach ($launch in $launchers) {
@@ -118,4 +114,8 @@ if ($ArchivePath) {
     } finally { if ($archive) { $archive.Dispose() }; $stream.Dispose() }
 }
 $nvidiaMode=if ($bundledNvidia) { 'bundled NVIDIA files; distributor must have appropriate permission' } else { 'user-supplied NVIDIA files' }
-Write-Host "Quick-test package: $PackageRoot (11 targets, automatic GPU selection, $nvidiaMode)"
+$cmdFiles=@(Get-ChildItem -LiteralPath $PackageRoot -Filter '*.cmd' -File)
+if ($cmdFiles.Count -ne 3 -or @($cmdFiles.Name | Where-Object { $_ -notin @('START-K.cmd','START-K-PROFILE.cmd','RESTORE-GAME.cmd') }).Count) {
+    throw 'Release test must contain exactly START-K.cmd, START-K-PROFILE.cmd and RESTORE-GAME.cmd.'
+}
+Write-Host "Quick-test package: $PackageRoot (K async+batch+GPU-ordered, 3 CMD files, $nvidiaMode)"
