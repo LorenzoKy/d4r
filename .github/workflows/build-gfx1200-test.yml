@@ -22,24 +22,50 @@ jobs:
         shell: pwsh
         run: .\scripts\windows\setup-windows-tools.ps1 -RuntimeProfile therock
 
-      - name: Materialize local DLSS test input
+      - name: Build gfx1200 compile gate
+        shell: pwsh
+        run: |
+          .\scripts\windows\build-windows-rdna4.ps1 `
+            -RuntimeProfile therock `
+            -GpuArch gfx1200 `
+            -BuildDirectory "$PWD\build\windows-gfx1200" `
+            -InstallDirectory "$PWD\dist\windows-gfx1200"
+
+      - name: Upload gfx1200 compile artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d4r-windows-gfx1200-k-compile
+          path: |
+            dist/windows-gfx1200/**
+            build/windows-gfx1200/*.log
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Check local DLSS test input
+        id: dlss
         shell: pwsh
         env:
           D4R_DLSS_DLL_B64: ${{ secrets.D4R_DLSS_DLL_B64 }}
         run: |
-          if (-not $env:D4R_DLSS_DLL_B64) { throw "D4R_DLSS_DLL_B64 repository secret is required; NVIDIA DLLs are never committed or published." }
+          if (-not $env:D4R_DLSS_DLL_B64) {
+            "available=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "D4R_DLSS_DLL_B64 is not configured. Compile gate passed; release packaging is skipped."
+            exit 0
+          }
           $bytes=[Convert]::FromBase64String($env:D4R_DLSS_DLL_B64)
           [IO.File]::WriteAllBytes("$PWD\nvngx_dlss.dll",$bytes)
           $hash=(Get-FileHash "$PWD\nvngx_dlss.dll" -Algorithm SHA256).Hash
           Write-Host "DLSS input SHA256: $hash"
           if ($hash -ne "3975567b8943c53acce397f2b72380092f84f162d00b0d2c7d08a1025c563983") { throw "Unexpected DLSS 310.9.1 SHA256." }
+          "available=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Build all Windows GPU targets and game packages
+        if: steps.dlss.outputs.available == 'true'
         shell: pwsh
         run: |
           .\scripts\windows\build-windows-gpu-matrix.ps1 `
             -RuntimeProfile therock `
-            -GpuArchitectures @("gfx1100","gfx1101","gfx1102","gfx1103","gfx1200","gfx1201") `
+            -GpuArchitectures @("gfx1100","gfx1101","gfx1102","gfx1103","gfx1150","gfx1151","gfx1152","gfx1153","gfx1154","gfx1200","gfx1201") `
             -ZludaRoot "$PWD\dist\zluda-windows-final" `
             -DlssDll "$PWD\nvngx_dlss.dll" `
             -PackageGames `
@@ -47,6 +73,7 @@ jobs:
             -OutputRoot "$PWD\dist\windows-gpu-coverage"
 
       - name: Build compact quick-test runtime ZIP
+        if: steps.dlss.outputs.available == 'true'
         shell: pwsh
         run: |
           $out="$PWD\dist\release-test"
@@ -57,18 +84,22 @@ jobs:
             -GamePackagePrefix "$PWD\dist\windows-gpu-coverage-game" `
             -PackageRoot $pkg `
             -ArchivePath $zip
-          if ((Get-Item $zip).Length -lt 121092482) { throw "Release test ZIP is smaller than the 2026-10-02 issue10 reference (121092482 bytes)." }
+          if ((Get-Item $zip).Length -lt 121092482) {
+            throw "Release test ZIP is smaller than the 2026-10-02 issue10 reference (121092482 bytes)."
+          }
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256" -Encoding ASCII
           Write-Host "Release test ZIP: $zip"
           Write-Host "Bytes: $((Get-Item $zip).Length)"
 
       - name: Build corresponding-source ZIP
+        if: steps.dlss.outputs.available == 'true'
         shell: pwsh
         run: |
           python .\tools\windows\package_quick_test_sources.py --output "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip"
           (Get-FileHash "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip" -Algorithm SHA256).Hash | Set-Content "$PWD\dist\release-test\d4r-windows-quick-test-sources.zip.sha256" -Encoding ASCII
 
       - name: Publish prerelease
+        if: steps.dlss.outputs.available == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
