@@ -5,7 +5,7 @@ param(
     [string]$GameExe, [string]$NgxCore, [string]$DlssDll,
     [string]$LocalTextureKernels,
     [switch]$ProfileStages, [switch]$ProfileKernelsDeferred, [switch]$ProfileLegacyStream,
-    [switch]$AsyncInterop, [switch]$BatchInputCopies, [switch]$DirectOutput,
+    [switch]$AsyncInterop, [switch]$BatchInputCopies, [switch]$AsyncGpuPipeline, [switch]$DirectOutput,
     [ValidateRange(1,1000000)][int]$KernelProfileEvery = 17,
     [switch]$CaptureExceptions
 )
@@ -98,7 +98,7 @@ try {
     $arch=$device.architecture; $target=$manifest.targets.$arch
     $status.gpu=$device; $status.binarySourceCommit=$target.binarySourceCommit
     Write-Host "Detected: $($device.name) / $arch" -ForegroundColor Cyan
-    Write-Host 'Experimental build. This run is a correctness test, not an FPS benchmark.'
+    Write-Host 'Experimental RX 9060 XT K test build. The release launcher uses async + batch + GPU-ordered fence dependencies.'
     $previousGame=if ($saved) { $saved.game } else { $null }
     if (!$GameExe -and $previousGame -and (Test-Path -LiteralPath $previousGame)) {
         Write-Host "Remembered game: $previousGame"
