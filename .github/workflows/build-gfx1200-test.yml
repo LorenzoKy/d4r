@@ -35,6 +35,26 @@ jobs:
             -BuildDirectory "$PWD\build\windows-gfx1200" `
             -InstallDirectory "$PWD\dist\windows-gfx1200"
 
+      - name: Validate gfx1200 K code objects
+        shell: pwsh
+        run: |
+          $root="$PWD\dist\windows-gfx1200\experimental\k"
+          $layers=@("enc0","enc1","enc2","enc3","enc4","dec5","dec4","dec3","dec2","dec1","dec0")
+          foreach ($layer in $layers) {
+            $path=Join-Path $root ("dltss_pwin_{0}_layer_gfx1200.hsaco" -f $layer)
+            if (!(Test-Path -LiteralPath $path)) { throw "Missing K object: $path" }
+            $bytes=[IO.File]::ReadAllBytes($path)
+            if ($bytes.Length -le 4096) { throw "Suspicious/empty K object: $path ($($bytes.Length) bytes)" }
+            $text=[Text.Encoding]::ASCII.GetString($bytes)
+            if (!$text.Contains(("dltss_pwin_{0}_layer" -f $layer)) -or !$text.Contains(("dltss_pwin_{0}_layer_prep" -f $layer))) {
+              throw "K object has no exported kernel/prep symbols: $path"
+            }
+            if (!$text.Contains("amdgpu12.00-amd-amdhsa-unknown-gfx1200")) {
+              throw "K object target metadata is not gfx1200: $path"
+            }
+          }
+          Write-Host "PASS gfx1200: all 11 K objects contain kernel+prep symbols and gfx1200 metadata."
+
       - name: Upload gfx1200 compile artifact
         uses: actions/upload-artifact@v4
         with:
