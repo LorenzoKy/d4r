@@ -93,18 +93,22 @@ jobs:
             Copy-Item $src.FullName $dest.FullName -Force
           }
           $bin=Join-Path $root "dist\windows-gfx1200\bin"
-          $overlay=@(
-            @{src=(Join-Path $bin 'd4r_nvngx.dll'); name='d4r_nvngx.dll'},
-            @{src=(Join-Path $bin 'd4r_gpu_inventory.exe'); name='d4r_gpu_inventory.exe'},
-            @{src=(Join-Path $bin 'd4r_debug_launcher.exe'); name='d4r_debug_launcher.exe'},
-            @{src=(Join-Path $root 'dist\windows-gfx1200\gpu-target.json'); name='gpu-target.json'},
-            @{src=(Join-Path $bin 'pixel_convert_gfx1200.hsaco'); name='pixel_convert_gfx1200.hsaco'}
+          $commonShim=Join-Path $bin 'd4r_nvngx.dll'
+          if (!(Test-Path -LiteralPath $commonShim)) { throw "Current gfx1200 overlay is missing: $commonShim" }
+          $commonDest=Join-Path $base 'files\common\d4r\nvngx.dll'
+          if (!(Test-Path -LiteralPath $commonDest)) { throw 'Base quick-test common d4r/nvngx.dll is missing.' }
+          Copy-Item $commonShim $commonDest -Force
+          $targetOverlay=@(
+            @{src=(Join-Path $bin 'd4r_gpu_inventory.exe'); rel='files\targets\gfx1200\d4r\d4r_gpu_inventory.exe'},
+            @{src=(Join-Path $bin 'd4r_debug_launcher.exe'); rel='files\targets\gfx1200\d4r\d4r_debug_launcher.exe'},
+            @{src=(Join-Path $root 'dist\windows-gfx1200\gpu-target.json'); rel='files\targets\gfx1200\gpu-target.json'},
+            @{src=(Join-Path $bin 'pixel_convert_gfx1200.hsaco'); rel='files\targets\gfx1200\d4r\pixel_convert_gfx1200.hsaco'}
           )
-          foreach ($item in $overlay) {
+          foreach ($item in $targetOverlay) {
             if (!(Test-Path -LiteralPath $item.src)) { throw "Current gfx1200 overlay is missing: $($item.src)" }
-            $dest=Get-ChildItem $base -Recurse -File -Filter $item.name | Select-Object -First 1
-            if (!$dest) { throw "Base quick-test has no overlay target $($item.name)" }
-            Copy-Item $item.src $dest.FullName -Force
+            $dest=Join-Path $base $item.rel
+            if (!(Test-Path -LiteralPath $dest)) { throw "Base quick-test has no expected gfx1200 overlay target $($item.rel)" }
+            Copy-Item $item.src $dest -Force
           }
           Copy-Item (Join-Path $root 'scripts\windows\quick-test.ps1') (Join-Path $base 'files\quick-test.ps1') -Force
           foreach ($name in @('windows-game.ps1','game-summary.ps1','gpu-target.ps1','gpu-preflight.ps1')) {
