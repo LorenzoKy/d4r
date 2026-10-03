@@ -7,19 +7,6 @@
 #define PWIN_VGPR
 #endif
 
-// gfx12 LDS uses 64 four-byte banks. Native K attention does 16-half LDS
-// vector loads with lane-varying row indices; compact row strides can alias
-// many lanes onto the same banks. These padded, 16-byte-aligned strides change
-// the bank phase without changing the logical matrix layout. Keep gfx11's
-// original strides because its WMMA/LDS mapping is different.
-#if defined(D4R_K_GFX1200_LDS_PAD)
-static constexpr int PWIN_KL_STRIDE = 40; // 80 B row stride, 20-bank phase
-static constexpr int PWIN_VT_STRIDE = 72; // 144 B row stride, 36-bank phase
-#else
-static constexpr int PWIN_KL_STRIDE = 32;
-static constexpr int PWIN_VT_STRIDE = 64;
-#endif
-
 struct PwinParams
 {
     int W, H;              // 0: token grid
@@ -261,7 +248,7 @@ __device__ __forceinline__ float row_sum_total(float rs, const half_t (&e)[4][8]
 // On return act holds the block output y. hb: normalised input rows; K/V of one head at a time in kl/vt.
 template <class L>
 __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, const u4v* __restrict__ bias,
-                          half_t (*act)[L::C], half_t (*hb)[L::C], half_t (*kl)[PWIN_KL_STRIDE], half_t (*vt)[PWIN_VT_STRIDE])
+                          half_t (*act)[L::C], half_t (*hb)[L::C], half_t (*kl)[32], half_t (*vt)[64])
 {
     constexpr int C = L::C, KT = L::KT, H = L::H;
     const uint32_t l = lane_id(), m = l & 15, hf = l >> 4;
@@ -548,8 +535,8 @@ __device__ void pwin_encoder(const PwinParams& p0, const u8v* __restrict__ img, 
     constexpr int C = L::C, COUT = L::COUT;
     __shared__ __attribute__((aligned(16))) half_t act[64][C];
     __shared__ __attribute__((aligned(16))) half_t hb[64][C];
-    __shared__ __attribute__((aligned(16))) half_t kl[64][PWIN_KL_STRIDE];
-    __shared__ __attribute__((aligned(16))) half_t vt[32][PWIN_VT_STRIDE];
+    __shared__ __attribute__((aligned(16))) half_t kl[64][32];
+    __shared__ __attribute__((aligned(16))) half_t vt[32][64];
     const uint32_t l = lane_id(), m = l & 15, hf = l >> 4;
     const int wv = threadIdx.z, tok = 16 * wv + m, ty = tok >> 3, tx = tok & 7;
     const int bx = blockIdx.x, by = blockIdx.y;
@@ -612,13 +599,11 @@ __device__ void pwin_encoder(const PwinParams& p0, const u8v* __restrict__ img, 
     const int my = m >> 2, mx = m & 3;
     const int Ym = (8 * by - p.sy) / 2 + my, Xm = (8 * bx - p.sx) / 2 + mx;
     const bool minb = Ym >= 0 && Ym < p.H / 2 && Xm >= 0 && Xm < p.W / 2;
-    if (minb)
+    half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * COUT;
+    const uint8_t* w = p.w;
+    for (int vt = wv; vt < L::PMT; vt += 4)
     {
-        half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * COUT;
-        const uint8_t* w = p.w;
-        for (int vt = wv; vt < L::PMT; vt += 4)
-        {
-            acc8v d;
+        acc8v d;
 {
 
     half_t vv_[8];
@@ -641,8 +626,7 @@ __device__ void pwin_encoder(const PwinParams& p0, const u8v* __restrict__ img, 
         }
         // allocated column 16 vt + c belongs to original warp g, local column 16 u + c
         const int g = vt / (L::NPA / 16), u = vt % (L::NPA / 16), valid = L::NPW - 16 * u;
-            op_gstore(mout + L::NPW * g + 16 * u, operand_from_f8(d), true, valid);
-        }
+        op_gstore(mout + L::NPW * g + 16 * u, operand_from_f8(d), minb, valid);
     }
 }
 
@@ -671,8 +655,8 @@ __device__ void pwin_plain(const PwinParams& p, const u8v* __restrict__ img, con
     constexpr int C = L::C;
     __shared__ __attribute__((aligned(16))) half_t act[64][C];
     __shared__ __attribute__((aligned(16))) half_t hb[64][C];
-    __shared__ __attribute__((aligned(16))) half_t kl[64][PWIN_KL_STRIDE];
-    __shared__ __attribute__((aligned(16))) half_t vt[32][PWIN_VT_STRIDE];
+    __shared__ __attribute__((aligned(16))) half_t kl[64][32];
+    __shared__ __attribute__((aligned(16))) half_t vt[32][64];
     const uint32_t l = lane_id(), m = l & 15, hf = l >> 4;
     const int wv = threadIdx.z, tok = 16 * wv + m, ty = tok >> 3, tx = tok & 7;
     const int bx = blockIdx.x, by = blockIdx.y;
@@ -755,8 +739,8 @@ __device__ void pwin_decoder(const PwinParams& p, const u8v* __restrict__ img, c
     __shared__ __attribute__((aligned(16))) half_t act[64][C];
     __shared__ __attribute__((aligned(16))) half_t hb[64][C];
     constexpr int KVR = L::POS ? 1 : 64, KVC = L::POS ? 1 : 32;
-    __shared__ __attribute__((aligned(16))) half_t kl[KVR][PWIN_KL_STRIDE];
-    __shared__ __attribute__((aligned(16))) half_t vt[KVC][PWIN_VT_STRIDE];
+    __shared__ __attribute__((aligned(16))) half_t kl[KVR][32];
+    __shared__ __attribute__((aligned(16))) half_t vt[KVC][64];
     const uint32_t l = lane_id(), m = l & 15, hf = l >> 4;
     const int wv = threadIdx.z, bx = blockIdx.x, by = blockIdx.y;
 
@@ -805,8 +789,6 @@ __device__ void pwin_decoder(const PwinParams& p, const u8v* __restrict__ img, c
     const bool inb = Y0 >= 0 && Y0 < p.H && X0 >= 0 && X0 < p.W;
     if constexpr (L::NOUTA != 0)
     {
-        if (!inb)
-            return;
         half_t* hout = (half_t*)p.out24 + (size_t)(Y0 * p.W + X0) * L::NOUT;
 #pragma unroll
         for (int nt = 0; nt < L::NOUTA / 16; ++nt)
@@ -828,7 +810,7 @@ __device__ void pwin_decoder(const PwinParams& p, const u8v* __restrict__ img, c
 #pragma unroll
             for (int kt = 0; kt < L::KT; ++kt)
                 d = mma16(op_img(img, (L::T_HEAD + kt * (L::NOUTA / 16) + nt) * 16 + m), op_lds(&act[tok][16 * kt]), d);
-            op_gstore(hout + 16 * nt, operand_from_f8(d), true, L::NOUT - 16 * nt);
+            op_gstore(hout + 16 * nt, operand_from_f8(d), inb, L::NOUT - 16 * nt);
         }
     }
     else if (inb)
