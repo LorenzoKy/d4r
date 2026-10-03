@@ -325,13 +325,11 @@ __device__ void wide_encoder(const PwinParams& p, const u8v* __restrict__ img, c
     const int my = m >> 2, mx = m & 3;
     const int Ym = (8 * (int)blockIdx.y - p.sy) / 2 + my, Xm = (8 * (int)blockIdx.x - p.sx) / 2 + mx;
     const bool minb = Ym >= 0 && Ym < p.H / 2 && Xm >= 0 && Xm < p.W / 2;
-    if (minb)
+    half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * COUT;
+    const uint8_t* w = p.w;
+    for (int vt = wv; vt < L::PMT; vt += 4 * NG)
     {
-        half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * COUT;
-        const uint8_t* w = p.w;
-        for (int vt = wv; vt < L::PMT; vt += 4 * NG)
-        {
-            acc8v d;
+        acc8v d;
         {
             half_t vv[8];
             dvec8(w, L::PMB + 32 * vt, vv);
