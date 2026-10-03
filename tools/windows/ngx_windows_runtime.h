@@ -612,7 +612,12 @@ private:
         // A second global context sync here only burns worker CPU time.
         if (!ticket) rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "Interop input producer completion");
         mark("input_fence_wait");
-        const bool batchInputs = std::getenv("D4R_BATCH_INPUT_COPIES") != nullptr;
+        // Async interop always batches its default-stream input copies. The worker
+        // cannot overlap a synchronous cudaMemcpy2D with the next plane anyway, and
+        // issuing all four copies before one stream boundary removes repeated host
+        // synchronization from the Windows/RDNA4 path.
+        const bool batchInputs = std::getenv("D4R_ASYNC_INTEROP") != nullptr ||
+                                  std::getenv("D4R_BATCH_INPUT_COPIES") != nullptr;
         for (unsigned i : {0u, 1u, 2u, 4u}) if (planes_[i].texture) {
             auto& plane = planes_[i];
             void* data = plane.shared->mapped; uint64_t pitch = plane.shared->footprint.Footprint.RowPitch;
