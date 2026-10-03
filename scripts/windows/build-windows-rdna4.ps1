@@ -6,6 +6,7 @@ param(
     [string]$ZludaRoot,
     [string]$ToolchainRoot,
     [switch]$PackedKAccumulator,
+    [switch]$FastKAccumulator,
     [switch]$Gfx1200LdsPad,
     [string]$BuildDirectory,
     [string]$InstallDirectory
@@ -65,6 +66,8 @@ try {
         $configure += "-DCMAKE_C_COMPILER=$(Join-Path $ToolchainRoot 'bin/x86_64-w64-mingw32-clang.exe')"
     }
     if ($ZludaRoot) { $configure += "-DD4R_ZLUDA_ROOT=$ZludaRoot" }
+    if ($FastKAccumulator) { $configure += "-DD4R_K_FP16_BASELINE=OFF" }
+    if ($PackedKAccumulator -and $FastKAccumulator) { throw 'Choose either -FastKAccumulator or -PackedKAccumulator; packed K requires the strict FP16 baseline.' }
     if ($PackedKAccumulator) { $configure += "-DD4R_K_PACKED_ACC=ON" }
     if ($Gfx1200LdsPad) { $configure += "-DD4R_K_GFX1200_LDS_PAD=ON" }
     $ErrorActionPreference = 'Continue'
