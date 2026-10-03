@@ -1,4 +1,4 @@
-name: Package RX 9060 XT quick-test
+name: Package RX 9060 XT quick-test (current)
 
 on:
   push:
