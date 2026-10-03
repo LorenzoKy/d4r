@@ -98,19 +98,19 @@ jobs:
           $manifest.targets.gfx1200.binarySourceCommit=$commit
           $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT packed-accumulator user test pending'
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
-          $profileCmd=Join-Path $base 'START-K-PROFILE.cmd'
-          @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17','pause') | Set-Content $profileCmd -Encoding ASCII
-          $profileEntry=@{path='START-K-PROFILE.cmd';sha256=(Get-FileHash $profileCmd -Algorithm SHA256).Hash;version=$null}
-          $asyncCmd=Join-Path $base 'START-K-ASYNC.cmd'
-          @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -AsyncInterop','pause') | Set-Content $asyncCmd -Encoding ASCII
-          $asyncEntry=@{path='START-K-ASYNC.cmd';sha256=(Get-FileHash $asyncCmd -Algorithm SHA256).Hash;version=$null}
-          $legacyCmd=Join-Path $base 'START-K-PROFILE-LEGACY.cmd'
-          @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17','pause') | Set-Content $legacyCmd -Encoding ASCII
-          $legacyEntry=@{path='START-K-PROFILE-LEGACY.cmd';sha256=(Get-FileHash $legacyCmd -Algorithm SHA256).Hash;version=$null}
-          $asyncProfileCmd=Join-Path $base 'START-K-ASYNC-PROFILE.cmd'
-          @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17','pause') | Set-Content $asyncProfileCmd -Encoding ASCII
-          $asyncProfileEntry=@{path='START-K-ASYNC-PROFILE.cmd';sha256=(Get-FileHash $asyncProfileCmd -Algorithm SHA256).Hash;version=$null}
-          $manifest.files += @($profileEntry,$asyncEntry,$legacyEntry,$asyncProfileEntry)
+          $launchers=@(
+            @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
+            @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
+            @{name='START-K-PROFILE-LEGACY.cmd'; arguments='-Preset 11 -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+          )
+          foreach ($launch in $launchers) {
+            $path=Join-Path $base $launch.name
+            $command='"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" ' + [string]$launch.arguments
+            @('@echo off','cd /d "%~dp0"',$command,'pause') | Set-Content $path -Encoding ASCII
+            if ((Get-Content $path).Count -ne 4 -or !(Select-String -LiteralPath $path -Pattern '-File "%~dp0files\quick-test.ps1" ' -SimpleMatch)) { throw "Invalid launcher generated: $($launch.name)" }
+            $manifest.files += @{path=$launch.name;sha256=(Get-FileHash $path -Algorithm SHA256).Hash;version=$null}
+          }
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
           @{base='windows-quick-test-20261002-issue10';baseBytes=121092482;baseSha256='72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3';packageCommit=$commit;candidate='D4R_K_PACKED_ACC=OFF; D4R_K_GFX1200_LDS_PAD=OFF; ASYNC_INTEROP=AVAILABLE';binarySourceCommit=$commit;note='Current windows-branch strict-F16 K baseline with async interop launchers over the validated issue10 portable runtime. NVIDIA DLLs remain user-supplied.'} | ConvertTo-Json | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
