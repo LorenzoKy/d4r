@@ -4,6 +4,7 @@
 using CUdevice = int;
 using CUdeviceptr = uint64_t;
 using CUcontext = void*;
+using CUstream = void*;
 using CUmodule = void*;
 using CUfunction = void*;
 struct CudaApi {
@@ -23,6 +24,7 @@ struct CudaApi {
     D4R_CU(cuCtxCreate_v2, int, CUcontext*, unsigned, CUdevice);
     D4R_CU(cuCtxDestroy_v2, int, CUcontext);
     D4R_CU(cuCtxSynchronize, int);
+    D4R_CU(cuStreamSynchronize, int, CUstream);
     D4R_CU(cuMemAlloc_v2, int, CUdeviceptr*, size_t);
     D4R_CU(cuMemFree_v2, int, CUdeviceptr);
     D4R_CU(cuMemcpyHtoD_v2, int, CUdeviceptr, const void*, size_t);
