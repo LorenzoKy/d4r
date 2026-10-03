@@ -99,10 +99,9 @@ jobs:
           $bin=Join-Path $root "dist\windows-gfx1200\bin"
           $commonShim=Join-Path $bin 'd4r_nvngx.dll'
           if (!(Test-Path -LiteralPath $commonShim)) { throw "Current gfx1200 overlay is missing: $commonShim" }
-          $commonCandidates=@(Get-ChildItem $base -Recurse -File -Filter 'nvngx.dll' | Where-Object { $_.FullName -match '\\files\\common\\' })
-          if (!$commonCandidates.Count) { throw 'Base quick-test common nvngx.dll is missing.' }
-          $commonDest=$commonCandidates[0].FullName
-          Copy-Item $commonShim $commonDest -Force
+          $targetShim=Join-Path $base 'files\targets\gfx1200\d4r\nvngx.dll'
+          New-Item -ItemType Directory -Force (Split-Path $targetShim) | Out-Null
+          Copy-Item $commonShim $targetShim -Force
           $targetOverlay=@(
             @{src=(Join-Path $bin 'd4r_gpu_inventory.exe'); rel='files\targets\gfx1200\d4r\d4r_gpu_inventory.exe'},
             @{src=(Join-Path $bin 'd4r_debug_launcher.exe'); rel='files\targets\gfx1200\d4r\d4r_debug_launcher.exe'},
@@ -123,6 +122,10 @@ jobs:
           Copy-Item (Join-Path $root 'docs\windows-quick-test.txt') (Join-Path $base 'READ-ME-FIRST.txt') -Force
           $manifestPath=Join-Path $base 'files\package.json'
           $manifest=Get-Content $manifestPath -Raw | ConvertFrom-Json
+          $targetEntries=@($manifest.targets.gfx1200.files)
+          if (!(@($targetEntries | Where-Object { $_.path.Replace('/','\') -eq 'd4r\nvngx.dll' }).Count)) {
+            $manifest.targets.gfx1200.files=@($targetEntries)+[pscustomobject]@{path='d4r/nvngx.dll';sha256='';version=$null}
+          }
           foreach ($entry in @($manifest.files)) {
             $rel=$entry.path.Replace('/','\')
             $full=Join-Path $base $rel
@@ -139,6 +142,18 @@ jobs:
               if (Test-Path -LiteralPath $full) { $entry.sha256=(Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash }
             }
           }
+          $launchers=@(
+            @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
+            @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+          )
+          foreach ($launch in $launchers) {
+            $path=Join-Path $base $launch.name
+            $command='"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" ' + $launch.arguments
+            @('@echo off','cd /d "%~dp0"',$command,'pause') | Set-Content -LiteralPath $path -Encoding ASCII
+            $lines=@(Get-Content -LiteralPath $path)
+            if ($lines.Count -ne 4 -or $lines[2] -ne $command) { throw "Invalid launcher generated: $($launch.name)" }
+            $manifest.files=@($manifest.files)+[pscustomobject]@{path=$launch.name;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash;version=$null}
+          }
           $currentCommit=(& git rev-parse HEAD).Trim()
           $manifest.packageCommit=$currentCommit
           $manifest.targets.gfx1200.binarySourceCommit=$currentCommit
@@ -146,7 +161,7 @@ jobs:
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
           @{
             base='windows-quick-test-20261002-issue10'; baseSha256=$baseHash; baseBytes=121092482
-            d4rCommit=$currentCommit; gfx1200KSource='dist/windows-gfx1200/experimental/k'
+            d4rCommit=$currentCommit; gfx1200KSource='dist/windows-gfx1200/experimental/k'; asyncLaunchers=@('START-K-ASYNC.cmd','START-K-ASYNC-PROFILE.cmd')
             note='Current windows-branch gfx1200 shim/diagnostics and 11 K objects overlaid on the validated issue10 quick-test runtime. NVIDIA DLLs remain excluded; tester supplies local originals.'
           } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
