@@ -3,7 +3,8 @@ param(
     [ValidateSet('run','install','restore')][string]$Action='run',
     [ValidateSet(11,13)][int]$Preset=11,
     [string]$GameExe, [string]$NgxCore, [string]$DlssDll,
-    [switch]$ProfileStages, [switch]$ProfileKernelsDeferred,
+    [switch]$ProfileStages, [switch]$ProfileKernelsDeferred, [switch]$ProfileLegacyStream,
+    [switch]$AsyncInterop,
     [ValidateRange(1,1000000)][int]$KernelProfileEvery = 17,
     [switch]$CaptureExceptions
 )
@@ -144,7 +145,7 @@ try {
     Write-Host 'In the game: select DLSS if available; otherwise select FSR/XeSS to let OptiScaler intercept it.'
     Write-Host 'The first launch compiles shaders and can take several minutes. Then play for 30 seconds and EXIT the game normally.'
     & (Join-Path $selectedPackage 'windows-game.ps1') -Action $Action -GameExe $GameExe -NgxCore $NgxCore -DlssDll $DlssDll `
-        -Preset $Preset -ValidateOutput -ProfileStages:$ProfileStages -ProfileKernelsDeferred:$ProfileKernelsDeferred -KernelProfileEvery $KernelProfileEvery -CaptureExceptions:$CaptureExceptions -OutputDirectory $output
+        -Preset $Preset -ValidateOutput -ProfileStages:$ProfileStages -ProfileKernelsDeferred:$ProfileKernelsDeferred -ProfileLegacyStream:$ProfileLegacyStream -AsyncInterop:$AsyncInterop -KernelProfileEvery $KernelProfileEvery -CaptureExceptions:$CaptureExceptions -OutputDirectory $output
     if ($Action -eq 'install') { $status.status='installed-only' }
     else {
         $summary=Get-Content -LiteralPath (Join-Path $output 'summary.json') -Raw | ConvertFrom-Json
@@ -165,7 +166,7 @@ try {
             elseif ($summary.completedFrames -eq 0 -and $summary.exitCode -eq '0x0' -and $summary.failures -eq 0) { 'inconclusive-process-exited-without-dlss-frames' }
             else { 'backend-checks-failed-or-no-dlss-frames' }
         $status.session=$summary.session
-        $status.profiling=@{stages=[bool]$ProfileStages; kernelsDeferred=[bool]$ProfileKernelsDeferred; every=$KernelProfileEvery}
+        $status.profiling=@{stages=[bool]$ProfileStages; kernelsDeferred=[bool]$ProfileKernelsDeferred; legacyStream=[bool]$ProfileLegacyStream; asyncInterop=[bool]$AsyncInterop; every=$KernelProfileEvery}
         if ($status.status -eq 'inconclusive-process-exited-without-dlss-frames') {
             Write-Host 'The launched process exited without a DLSS frame. A Steam/launcher restart is not tracked by this test. Keep Steam open and select the actual game executable. Send the ZIP if it restarts again.' -ForegroundColor Yellow
         }
