@@ -60,9 +60,11 @@ $entry=Stage (Join-Path $repo 'tools/windows/gpu-targets.json') 'files/common/gp
 $common+=@{path='gpu-targets.json'; sha256=$entry.sha256; version=$entry.version}
 [void](Stage (Join-Path $PSScriptRoot 'quick-test.ps1') 'files/quick-test.ps1')
 [void](Stage (Join-Path $repo 'docs/windows-quick-test.txt') 'READ-ME-FIRST.txt')
+[void](Stage (Join-Path $repo 'CHANGELOG-WINDOWS.md') 'CHANGELOG-WINDOWS.md')
 $launchers=@(
-    @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
-    @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+    # Release test surface: exactly three CMD files.
+    @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs'},
+    @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -ProfileGpuBoundary -KernelProfileEvery 17'}
 )
 foreach ($launch in $launchers) {
     $path=Join-Path $PackageRoot $launch.name
@@ -117,5 +119,9 @@ if ($ArchivePath) {
         }
     } finally { if ($archive) { $archive.Dispose() }; $stream.Dispose() }
 }
+$cmdFiles=@(Get-ChildItem -LiteralPath $PackageRoot -Filter '*.cmd' -File)
+if ($cmdFiles.Count -ne 3 -or @($cmdFiles.Name | Where-Object { $_ -notin @('START-K.cmd','START-K-PROFILE.cmd','RESTORE-GAME.cmd') }).Count) {
+    throw 'Release test must contain exactly START-K.cmd, START-K-PROFILE.cmd and RESTORE-GAME.cmd.'
+}
 $nvidiaMode=if ($bundledNvidia) { 'bundled NVIDIA files; distributor must have appropriate permission' } else { 'user-supplied NVIDIA files' }
-Write-Host "Quick-test package: $PackageRoot (11 targets, automatic GPU selection, two optimized K launchers + restore utility, $nvidiaMode)"
+Write-Host "Quick-test package: $PackageRoot (K async+batch+GPU-ordered, 3 CMD files, $nvidiaMode)"
