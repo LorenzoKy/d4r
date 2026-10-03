@@ -153,5 +153,21 @@ public:
         copy.widthBytes = rowBytes_; copy.height = height_;
         api_.cuda.check(api_.cuMemcpy2D_v2(&copy), "cuMemcpy2D_v2(array to external VRAM)");
     }
+    // ZLUDA surface handles point at the emulated surface descriptor. The
+    // native Hiluma output tail recognizes the private R2 redirect metadata at
+    // byte 84 and writes the RGBA16F pixels directly to linear VRAM.
+    void set_redirect(CUdeviceptr destination, uint32_t pitch) {
+        if (!destination) pitch = 0;
+        if (pitch != 0 && pitch < rowBytes_) throw std::runtime_error("Direct-output pitch is smaller than its row");
+        struct Redirect {
+            uint32_t word;
+            uint32_t reserved;
+            uint64_t pointer;
+        } redirect{};
+        redirect.word = pitch != 0 ? (0x52320000u | ((pitch >> 3) & 0xffffu)) : 0u;
+        redirect.pointer = destination;
+        api_.cuda.check(api_.cuMemcpyHtoD_v2(static_cast<CUdeviceptr>(object) + 84, &redirect, 12),
+                        "cuMemcpyHtoD_v2(surface direct-output redirect)");
+    }
 };
 }
