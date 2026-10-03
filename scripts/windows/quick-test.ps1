@@ -7,7 +7,7 @@ param(
     [switch]$ProfileStages, [switch]$ProfileKernelsDeferred, [switch]$ProfileLegacyStream,
     [switch]$AsyncInterop, [switch]$AsyncGpuPipeline, [switch]$BatchInputCopies, [switch]$DirectOutput,
     [ValidateRange(1,1000000)][int]$KernelProfileEvery = 17,
-    [switch]$CaptureExceptions
+    [switch]$CaptureExceptions, [switch]$ValidateOutput
 )
 $ErrorActionPreference='Stop'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -146,7 +146,7 @@ try {
     Write-Host 'In the game: select DLSS if available; otherwise select FSR/XeSS to let OptiScaler intercept it.'
     Write-Host 'The first launch compiles shaders and can take several minutes. Then play for 30 seconds and EXIT the game normally.'
     & (Join-Path $selectedPackage 'windows-game.ps1') -Action $Action -GameExe $GameExe -NgxCore $NgxCore -DlssDll $DlssDll `
-        -Preset $Preset -ValidateOutput -ProfileStages:$ProfileStages -ProfileKernelsDeferred:$ProfileKernelsDeferred -ProfileLegacyStream:$ProfileLegacyStream -AsyncInterop:$AsyncInterop -AsyncGpuPipeline:$AsyncGpuPipeline -BatchInputCopies:$BatchInputCopies -DirectOutput:$DirectOutput -LocalTextureKernels $LocalTextureKernels -KernelProfileEvery $KernelProfileEvery -CaptureExceptions:$CaptureExceptions -OutputDirectory $output
+        -Preset $Preset -ValidateOutput:$ValidateOutput -ProfileStages:$ProfileStages -ProfileKernelsDeferred:$ProfileKernelsDeferred -ProfileLegacyStream:$ProfileLegacyStream -AsyncInterop:$AsyncInterop -AsyncGpuPipeline:$AsyncGpuPipeline -BatchInputCopies:$BatchInputCopies -DirectOutput:$DirectOutput -LocalTextureKernels $LocalTextureKernels -KernelProfileEvery $KernelProfileEvery -CaptureExceptions:$CaptureExceptions -OutputDirectory $output
     if ($Action -eq 'install') { $status.status='installed-only' }
     else {
         $summary=Get-Content -LiteralPath (Join-Path $output 'summary.json') -Raw | ConvertFrom-Json
@@ -157,8 +157,9 @@ try {
         $hits=@($summary.kernels | Where-Object { $_.backend -eq 'native' -and $_.launches -gt 0 } | ForEach-Object { $_.kernel })
         $status.missingNativeKernels=@($required | Where-Object { $hits -notcontains $_ })
         $status.translatedNativeKernels=@($summary.kernels | Where-Object { $_.backend -eq 'translated' -and $required -contains $_.kernel } | ForEach-Object { $_.kernel })
+        $validationPassed = !$ValidateOutput -or ($summary.outputGpuChecks -gt 0 -and $summary.nonfiniteOutputs -eq 0)
         $passed=$summary.exitCode -eq '0x0' -and $summary.completedFrames -gt 0 -and $summary.nativeLaunches -gt 0 -and
-            $summary.outputGpuChecks -gt 0 -and $summary.failures -eq 0 -and $summary.nonfiniteOutputs -eq 0 -and
+            $validationPassed -and $summary.failures -eq 0 -and
             $summary.previousFrameOutputs -eq 0 -and $summary.cpuImageCopyFrames -eq 0 -and
             @($required).Count -eq $(if ($Preset -eq 11) { 11 } else { 5 }) -and
             $status.missingNativeKernels.Count -eq 0 -and $status.translatedNativeKernels.Count -eq 0
@@ -167,11 +168,11 @@ try {
             elseif ($summary.completedFrames -eq 0 -and $summary.exitCode -eq '0x0' -and $summary.failures -eq 0) { 'inconclusive-process-exited-without-dlss-frames' }
             else { 'backend-checks-failed-or-no-dlss-frames' }
         $status.session=$summary.session
-        $status.profiling=@{stages=[bool]$ProfileStages; kernelsDeferred=[bool]$ProfileKernelsDeferred; legacyStream=[bool]$ProfileLegacyStream; asyncInterop=[bool]$AsyncInterop; asyncGpuPipeline=[bool]$AsyncGpuPipeline; batchInputCopies=[bool]$BatchInputCopies; localTextureKernels=[bool]$LocalTextureKernels; directOutput=[bool]$DirectOutput; every=$KernelProfileEvery}
+        $status.profiling=@{stages=[bool]$ProfileStages; kernelsDeferred=[bool]$ProfileKernelsDeferred; validateOutput=[bool]$ValidateOutput; legacyStream=[bool]$ProfileLegacyStream; asyncInterop=[bool]$AsyncInterop; asyncGpuPipeline=[bool]$AsyncGpuPipeline; batchInputCopies=[bool]$BatchInputCopies; localTextureKernels=[bool]$LocalTextureKernels; directOutput=[bool]$DirectOutput; every=$KernelProfileEvery}
         if ($status.status -eq 'inconclusive-process-exited-without-dlss-frames') {
             Write-Host 'The launched process exited without a DLSS frame. A Steam/launcher restart is not tracked by this test. Keep Steam open and select the actual game executable. Send the ZIP if it restarts again.' -ForegroundColor Yellow
         }
-        Write-Host $(if ($passed) { 'Backend checks PASSED. Please also report whether the image looked correct.' } else { 'Test did not pass. Send the diagnostic ZIP; do not guess from the FPS.' }) -ForegroundColor $(if ($passed) { 'Green' } else { 'Yellow' })
+        Write-Host $(if ($passed) { if ($ValidateOutput) { 'Backend checks PASSED. Please also report whether the image looked correct.' } else { 'Backend checks PASSED; output validation was skipped for performance. Please report whether the image looked correct.' } } else { 'Test did not pass. Send the diagnostic ZIP; do not guess from the FPS.' }) -ForegroundColor $(if ($passed) { 'Green' } else { 'Yellow' })
     }
 } catch {
     $status.status='failed'; $status.error=$_.Exception.Message

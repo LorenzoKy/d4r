@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.24)
 project(d4r_windows_diagnostics LANGUAGES C CXX)
+execute_process(
+  COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" rev-parse --verify HEAD
+  OUTPUT_VARIABLE D4R_BUILD_COMMIT
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET)
+if(NOT D4R_BUILD_COMMIT)
+  set(D4R_BUILD_COMMIT "unknown")
+endif()
+add_compile_definitions(D4R_BUILD_COMMIT="${D4R_BUILD_COMMIT}")
 if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "These diagnostics require native Windows x64")
 endif()

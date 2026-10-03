@@ -61,14 +61,8 @@ $common+=@{path='gpu-targets.json'; sha256=$entry.sha256; version=$entry.version
 [void](Stage (Join-Path $PSScriptRoot 'quick-test.ps1') 'files/quick-test.ps1')
 [void](Stage (Join-Path $repo 'docs/windows-quick-test.txt') 'READ-ME-FIRST.txt')
 $launchers=@(
-    @{name='START-K.cmd'; arguments='-Preset 11'},
-    @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
-    @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
-    @{name='START-K-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
-    @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-    @{name='START-K-ASYNC-PROFILE-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-    @{name='START-M.cmd'; arguments='-Preset 13'},
-    @{name='RESTORE-GAME.cmd'; arguments='-Action restore'}
+    @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
+    @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
 )
 foreach ($launch in $launchers) {
     $path=Join-Path $PackageRoot $launch.name

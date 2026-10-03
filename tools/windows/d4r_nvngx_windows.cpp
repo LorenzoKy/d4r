@@ -8,6 +8,29 @@
 namespace {
 std::mutex apiMutex;
 std::shared_ptr<d4r::win::Runtime> runtime;
+
+std::string module_path() {
+    HMODULE module = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCWSTR>(&module_path), &module))
+        return "unknown";
+    wchar_t path[32768]{};
+    const DWORD length = GetModuleFileNameW(module, path, 32768);
+    return length && length < 32768 ? d4r::diag::utf8(path) : "unknown";
+}
+
+void print_build_fingerprint() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        const bool asyncInterop = std::getenv("D4R_ASYNC_INTEROP") != nullptr;
+        const bool gpuPipeline = std::getenv("D4R_ASYNC_GPU_PIPELINE") != nullptr;
+        const bool batchInputs = std::getenv("D4R_BATCH_INPUT_COPIES") != nullptr;
+        const bool directOutput = std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr;
+        std::printf("D4R_BUILD_FINGERPRINT commit=%s module=%s async=%u gpu_pipeline=%u batch=%u direct=%u\n",
+            D4R_BUILD_COMMIT, module_path().c_str(), unsigned(asyncInterop), unsigned(gpuPipeline),
+            unsigned(batchInputs), unsigned(directOutput));
+    });
+}
 struct Handle { unsigned Id; };
 unsigned nextId = 1;
 std::unordered_map<Handle*, std::shared_ptr<d4r::win::Feature>> features;
@@ -61,6 +84,7 @@ API unsigned NVSDK_NGX_D3D12_Init_Ext(unsigned long long app, const wchar_t* dat
     std::lock_guard<std::mutex> lock(apiMutex);
     return call([&] {
         d4r::win::player::ensure_environment();
+        print_build_fingerprint();
         if (!runtime) runtime = std::make_shared<d4r::win::Runtime>(device, app, data, sdk, static_cast<const d4r::ngx::FeatureCommonInfo*>(info));
         if (const char* backend = std::getenv("D4R_D3D12_COMMAND_BACKEND"); backend && std::string(backend) == "1")
             d4r::win::commands::install(device);
@@ -75,6 +99,7 @@ API unsigned NVSDK_NGX_D3D12_Init_ProjectID(const char* project, int engine, con
     return call([&] {
         if (!project || !*project) return invalid;
         d4r::win::player::ensure_environment();
+        print_build_fingerprint();
         d4r::ngx::ProjectIdentity identity{project, engine, version ? version : ""};
         if (!runtime) runtime = std::make_shared<d4r::win::Runtime>(device, 0, data, sdk, static_cast<const d4r::ngx::FeatureCommonInfo*>(info), &identity);
         if (const char* backend = std::getenv("D4R_D3D12_COMMAND_BACKEND"); backend && std::string(backend) == "1") d4r::win::commands::install(device);
