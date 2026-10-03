@@ -26,6 +26,11 @@ jobs:
         shell: pwsh
         run: .\scripts\windows\setup-windows-tools.ps1 -RuntimeProfile therock
 
+      - name: Check gfx1200 K LDS bank model
+        shell: pwsh
+        run: |
+          python .\kernels\tools\check_k_lds_banks.py
+
       - name: Build gfx1200 compile gate
         shell: pwsh
         run: |
