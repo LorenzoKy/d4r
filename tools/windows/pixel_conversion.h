@@ -15,7 +15,11 @@ inline PixelSpec pixel_spec(unsigned plane, DXGI_FORMAT format) {
     // as NGX's resource-only ABI provides no SRV descriptor to disambiguate.
     switch (format) {
         case DXGI_FORMAT_R16G16B16A16_FLOAT: case DXGI_FORMAT_R16G16B16A16_TYPELESS:
-            return {rgba16f, 8, plane == color || plane == output};
+            // DLSS MotionVectors consumes only RG. With an RGBA16F D3D12 motion
+            // resource the first 4 bytes of each 8-byte pixel are already the
+            // required RG16F payload; Image::upload_device copies rowBytes_ (4*W)
+            // from each padded source row, so no conversion pass is necessary.
+            return {rgba16f, 8, plane == color || plane == output || plane == motion};
         case DXGI_FORMAT_R32G32B32A32_FLOAT: return {rgba32f, 16, false};
         case DXGI_FORMAT_R11G11B10_FLOAT: return {r11g11b10f, 4, false};
         case DXGI_FORMAT_R10G10B10A2_UNORM: case DXGI_FORMAT_R10G10B10A2_TYPELESS: return {rgb10a2, 4, false};
