@@ -120,14 +120,16 @@ jobs:
           if (!(Test-Path (Join-Path $base 'START-K.cmd'))) { throw 'START-K.cmd missing.' }
           Write-Host "FINAL QUICK TEST ZIP: $zip"
           Write-Host "FINAL QUICK TEST BYTES: $bytes"
-          Write-Host "FINAL QUICK TEST SHA256: $((Get-FileHash $zip -Algorithm SHA256).Hash)"
+          $sha=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath ($zip+'.sha256') -Value ($sha+'  '+[IO.Path]::GetFileName($zip)) -Encoding ASCII
+          Write-Host "FINAL QUICK TEST SHA256: $sha"
 
       - name: Upload RX 9060 XT async interop quick-test
         uses: actions/upload-artifact@v4
         with:
           name: d4r-windows-quick-test-gfx1200-async
           path: |
-            dist/quick-test-packed/d4r-windows-quick-test-gfx1200-packed.zip
-            dist/quick-test-packed/d4r-windows-quick-test-gfx1200-packed.zip.sha256
+            dist/quick-test-async/d4r-windows-quick-test-gfx1200-async.zip
+            dist/quick-test-async/d4r-windows-quick-test-gfx1200-async.zip.sha256
           if-no-files-found: error
           retention-days: 14
