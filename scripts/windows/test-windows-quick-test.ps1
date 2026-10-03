@@ -55,6 +55,22 @@ foreach ($name in $before.Keys) { if ((Get-FileHash -LiteralPath (Join-Path $gam
 if (Test-Path -LiteralPath (Join-Path $game 'd4r')) { throw 'Runtime directory remains after restore.' }
 $results+=@{case='auto-gfx1201-install-remember-restore'; passed=$true; gpuKernelsExecuted=$false}
 $manifest=Get-Content -LiteralPath (Join-Path $PackageRoot 'files/package.json') -Raw | ConvertFrom-Json
+$launcherExpectations=@{
+    'START-K.cmd'='-Preset 11';
+    'START-K-PROFILE.cmd'='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17';
+    'START-K-ASYNC.cmd'='-Preset 11 -AsyncInterop';
+    'START-K-ASYNC-PROFILE.cmd'='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17';
+    'START-M.cmd'='-Preset 13';
+    'RESTORE-GAME.cmd'='-Action restore'
+}
+foreach ($name in $launcherExpectations.Keys) {
+    $path=Join-Path $PackageRoot $name
+    if (!(Test-Path -LiteralPath $path)) { throw "Missing quick-test launcher: $name" }
+    $lines=@(Get-Content -LiteralPath $path)
+    if ($lines.Count -ne 4 -or $lines[0] -ne '@echo off' -or $lines[1] -ne 'cd /d "%~dp0"') { throw "Malformed quick-test launcher: $name" }
+    if ($lines[2] -notlike ('*"'+$launcherExpectations[$name])) { throw "Launcher flags missing: $name" }
+    if ($lines[3] -ne 'pause') { throw "Launcher footer malformed: $name" }
+}
 if ($manifest.bundledNvidia) {
     # Bundled originals take precedence over stale remembered shim selections;
     # explicit overrides still go through the existing strict negative gates.
