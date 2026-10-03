@@ -5,7 +5,7 @@ param(
     [string]$GameExe, [string]$NgxCore, [string]$DlssDll,
     [string]$LocalTextureKernels,
     [switch]$ProfileStages, [switch]$ProfileKernelsDeferred, [switch]$ProfileLegacyStream,
-    [switch]$AsyncInterop, [switch]$BatchInputCopies,
+    [switch]$AsyncInterop, [switch]$BatchInputCopies, [switch]$DirectOutput,
     [ValidateRange(1,1000000)][int]$KernelProfileEvery = 17,
     [switch]$CaptureExceptions
 )
@@ -146,7 +146,7 @@ try {
     Write-Host 'In the game: select DLSS if available; otherwise select FSR/XeSS to let OptiScaler intercept it.'
     Write-Host 'The first launch compiles shaders and can take several minutes. Then play for 30 seconds and EXIT the game normally.'
     & (Join-Path $selectedPackage 'windows-game.ps1') -Action $Action -GameExe $GameExe -NgxCore $NgxCore -DlssDll $DlssDll `
-        -Preset $Preset -ValidateOutput -ProfileStages:$ProfileStages -ProfileKernelsDeferred:$ProfileKernelsDeferred -ProfileLegacyStream:$ProfileLegacyStream -AsyncInterop:$AsyncInterop -BatchInputCopies:$BatchInputCopies -LocalTextureKernels $LocalTextureKernels -KernelProfileEvery $KernelProfileEvery -CaptureExceptions:$CaptureExceptions -OutputDirectory $output
+        -Preset $Preset -ValidateOutput -ProfileStages:$ProfileStages -ProfileKernelsDeferred:$ProfileKernelsDeferred -ProfileLegacyStream:$ProfileLegacyStream -AsyncInterop:$AsyncInterop -BatchInputCopies:$BatchInputCopies -DirectOutput:$DirectOutput -LocalTextureKernels $LocalTextureKernels -KernelProfileEvery $KernelProfileEvery -CaptureExceptions:$CaptureExceptions -OutputDirectory $output
     if ($Action -eq 'install') { $status.status='installed-only' }
     else {
         $summary=Get-Content -LiteralPath (Join-Path $output 'summary.json') -Raw | ConvertFrom-Json
@@ -167,7 +167,7 @@ try {
             elseif ($summary.completedFrames -eq 0 -and $summary.exitCode -eq '0x0' -and $summary.failures -eq 0) { 'inconclusive-process-exited-without-dlss-frames' }
             else { 'backend-checks-failed-or-no-dlss-frames' }
         $status.session=$summary.session
-        $status.profiling=@{stages=[bool]$ProfileStages; kernelsDeferred=[bool]$ProfileKernelsDeferred; legacyStream=[bool]$ProfileLegacyStream; asyncInterop=[bool]$AsyncInterop; batchInputCopies=[bool]$BatchInputCopies; localTextureKernels=[bool]$LocalTextureKernels; every=$KernelProfileEvery}
+        $status.profiling=@{stages=[bool]$ProfileStages; kernelsDeferred=[bool]$ProfileKernelsDeferred; legacyStream=[bool]$ProfileLegacyStream; asyncInterop=[bool]$AsyncInterop; batchInputCopies=[bool]$BatchInputCopies; localTextureKernels=[bool]$LocalTextureKernels; directOutput=[bool]$DirectOutput; every=$KernelProfileEvery}
         if ($status.status -eq 'inconclusive-process-exited-without-dlss-frames') {
             Write-Host 'The launched process exited without a DLSS frame. A Steam/launcher restart is not tracked by this test. Keep Steam open and select the actual game executable. Send the ZIP if it restarts again.' -ForegroundColor Yellow
         }
