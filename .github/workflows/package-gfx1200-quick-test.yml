@@ -29,7 +29,7 @@ jobs:
       - name: Build gfx1200 K optimized candidate
         shell: pwsh
         run: |
-          .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -BuildDirectory "$PWD\build\windows-gfx1200-async" -InstallDirectory "$PWD\dist\windows-gfx1200-async"
+          .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -Gfx1200LdsPad -BuildDirectory "$PWD\build\windows-gfx1200-lean" -InstallDirectory "$PWD\dist\windows-gfx1200-lean"
 
       - name: Validate gfx1200 K code objects
         shell: pwsh
@@ -45,7 +45,7 @@ jobs:
             if (!$ascii.Contains(("dltss_pwin_{0}_layer" -f $layer)) -or !$ascii.Contains(("dltss_pwin_{0}_layer_prep" -f $layer))) { throw "Missing kernel/prep symbols: $path" }
             if (!$ascii.Contains("amdgpu12.00-amd-amdhsa-unknown-gfx1200")) { throw "Wrong target metadata: $path" }
           }
-          Write-Host "PASS: gfx1200 strict-F16 K baseline, 11/11 objects."
+          Write-Host "PASS: gfx1200 strict-F16 K LDS-padded candidate, 11/11 objects."
 
       - name: Package from issue10 runtime
         shell: pwsh
@@ -101,7 +101,7 @@ jobs:
           $commit=(& git rev-parse HEAD).Trim()
           $manifest.packageCommit=$commit
           $manifest.targets.gfx1200.binarySourceCommit=$commit
-          $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT packed-accumulator user test pending'
+          $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT lean optimized user test pending'
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
           Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File | Remove-Item -Force
           $manifest.files=@($manifest.files | Where-Object { $_.path -notlike '*.cmd' })
