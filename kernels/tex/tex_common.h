@@ -303,10 +303,10 @@ __attribute__((device)) static inline uint32_t redirect_pitch(uint64_t surface)
     const uint32_t word = ((const __attribute__((address_space(4))) uint32_t*)surface)[21];
     return (word >> 16) == 0x5232u ? (word & 0xffffu) << 3 : 0u;
 }
-__attribute__((device)) static inline uint8_t* redirect_row(uint64_t surface, int32_t y)
+__attribute__((device)) static inline uint8_t* redirect_row(uint64_t surface, int32_t y, uint32_t pitch)
 {
     const uint64_t base = *(const __attribute__((address_space(4))) uint64_t*)(surface + 88);
-    return (uint8_t*)(base + (uint64_t)(uint32_t)y * redirect_pitch(surface));
+    return (uint8_t*)(base + (uint64_t)(uint32_t)y * pitch);
 }
 __attribute__((device)) static inline bool redirect_inside(uint64_t surface, int32_t x, int32_t y)
 {
@@ -317,14 +317,15 @@ __attribute__((device)) static inline bool redirect_inside(uint64_t surface, int
 DEV __attribute__((always_inline)) void d4r_sust_p_v4b32(uint64_t surface, int32_t x, int32_t y, uint32_t a, uint32_t b,
                                                         uint32_t c, uint32_t d)
 {
+    const uint32_t pitch = redirect_pitch(surface);
 #if defined(D4R_DIRECT_OUTPUT_FAST)
     // The fast private output objects are built only for the Windows K RGBA16F
     // direct-output path. The runtime validates that contract before redirecting
     // the surface, so the per-store CUDA-format descriptor load/check is redundant.
-    if (redirect_pitch(surface) != 0)
+    if (pitch != 0)
 #else
     const uint32_t format0 = ((const __attribute__((address_space(4))) uint32_t*)surface)[20];
-    if (redirect_pitch(surface) != 0 && format0 != 80 && !(format0 >= 192 && format0 <= 203))
+    if (pitch != 0 && format0 != 80 && !(format0 >= 192 && format0 <= 203))
 #endif
     {
         // RGBA16F: the f32 values as halves, rounded toward zero like the image store's format conversion
@@ -332,7 +333,7 @@ DEV __attribute__((always_inline)) void d4r_sust_p_v4b32(uint64_t surface, int32
         {
             const uint32_t lo = __builtin_bit_cast(uint32_t, __builtin_amdgcn_cvt_pkrtz(__builtin_bit_cast(float, a), __builtin_bit_cast(float, b)));
             const uint32_t hi = __builtin_bit_cast(uint32_t, __builtin_amdgcn_cvt_pkrtz(__builtin_bit_cast(float, c), __builtin_bit_cast(float, d)));
-            *(uint2_t*)(redirect_row(surface, y) + 8 * x) = (uint2_t){lo, hi};
+            *(uint2_t*)(redirect_row(surface, y, pitch) + 8 * x) = (uint2_t){lo, hi};
         }
         return;
     }
@@ -433,11 +434,12 @@ FP_BODY void sust_b32_fast(tsharp_t* image, int32_t x, int32_t y, uint32_t data,
 DEV __attribute__((always_inline)) void d4r_sust_b32(uint64_t surface, int32_t x, int32_t y, uint32_t data)
 {
     tsharp_t* image = (tsharp_t*)surface;
-    if (redirect_pitch(surface) != 0)
+    const uint32_t pitch = redirect_pitch(surface);
+    if (pitch != 0)
     {
         // raw bits at byte offset x (RGBA16F rows are 8 bytes per pixel)
         if (x >= 0 && (x & 3) == 0 && redirect_inside(surface, x >> 3, y))
-            *(uint32_t*)(redirect_row(surface, y) + x) = data;
+            *(uint32_t*)(redirect_row(surface, y, pitch) + x) = data;
         return;
     }
     const int dt = __ockl_image_channel_data_type_2D(image), order = __ockl_image_channel_order_2D(image);
