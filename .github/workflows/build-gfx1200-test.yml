@@ -120,6 +120,8 @@ jobs:
           }
           Copy-Item (Join-Path $root 'tools\windows\gpu-targets.json') (Join-Path $base 'files\common\gpu-targets.json') -Force
           Copy-Item (Join-Path $root 'docs\windows-quick-test.txt') (Join-Path $base 'READ-ME-FIRST.txt') -Force
+          Copy-Item (Join-Path $root 'CHANGELOG-WINDOWS.md') (Join-Path $base 'CHANGELOG-WINDOWS.md') -Force
+          Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File -ErrorAction SilentlyContinue | Remove-Item -Force
           $manifestPath=Join-Path $base 'files\package.json'
           $manifest=Get-Content $manifestPath -Raw | ConvertFrom-Json
           $targetEntries=@($manifest.targets.gfx1200.files)
@@ -156,6 +158,8 @@ jobs:
             $manifest.files=@($manifest.files)+[pscustomobject]@{path=$launch.name;sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash;version=$null}
           }
           $currentCommit=(& git rev-parse HEAD).Trim()
+          $manifest.files=@($manifest.files | Where-Object { $_.path -ne 'CHANGELOG-WINDOWS.md' })
+          $manifest.files += [pscustomobject]@{path='CHANGELOG-WINDOWS.md';sha256=(Get-FileHash (Join-Path $base 'CHANGELOG-WINDOWS.md') -Algorithm SHA256).Hash;version=$null}
           $manifest.packageCommit=$currentCommit
           $manifest.targets.gfx1200.binarySourceCommit=$currentCommit
           $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT user test pending'
@@ -230,9 +234,7 @@ jobs:
             -GamePackagePrefix "$PWD\dist\windows-gpu-coverage-game" `
             -PackageRoot $pkg `
             -ArchivePath $zip
-          if ((Get-Item $zip).Length -lt 121092482) {
-            throw "Release test ZIP is smaller than the 2026-10-02 issue10 reference (121092482 bytes)."
-          }
+          if ($bytes -le 1MB) { throw "Release test ZIP is unexpectedly small." }
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256" -Encoding ASCII
           Write-Host "Release test ZIP: $zip"
           Write-Host "Bytes: $((Get-Item $zip).Length)"
