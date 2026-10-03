@@ -12,7 +12,7 @@
 // many lanes onto the same banks. These padded, 16-byte-aligned strides change
 // the bank phase without changing the logical matrix layout. Keep gfx11's
 // original strides because its WMMA/LDS mapping is different.
-#if D4R_WMMA_LAYOUT == 12
+#if defined(D4R_K_GFX1200_LDS_PAD)
 static constexpr int PWIN_KL_STRIDE = 40; // 80 B row stride, 20-bank phase
 static constexpr int PWIN_VT_STRIDE = 72; // 144 B row stride, 36-bank phase
 #else
@@ -733,11 +733,14 @@ template <class L> __device__ void pwin_dec_prep(const PwinParams& p, u8v* img, 
         img[idx] = img_tile(p.w, 512 * ks + 32 * L::CL * nt, idx & 15);
         return;
     }
-    if (idx >= L::T_HEAD * 16 && idx < L::T_END * 16)
+    if constexpr (L::NOUTA != 0)
     {
-        const int t = (idx >> 4) - L::T_HEAD, nt = t % (L::NOUTA / 16), ks = t / (L::NOUTA / 16);
-        img[idx] = img_tile(p.w + L::CB, L::HW + 512 * ks + 512 * L::KT * nt, idx & 15);
-        return;
+        if (idx >= L::T_HEAD * 16 && idx < L::T_END * 16)
+        {
+            const int t = (idx >> 4) - L::T_HEAD, nt = t % (L::NOUTA / 16), ks = t / (L::NOUTA / 16);
+            img[idx] = img_tile(p.w + L::CB, L::HW + 512 * ks + 512 * L::KT * nt, idx & 15);
+            return;
+        }
     }
     PwinParams q = p;
     q.w = p.w + L::CB;
