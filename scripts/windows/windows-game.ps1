@@ -20,6 +20,7 @@ param(
     [switch]$UncachedInteropLists,
     [switch]$AsyncInterop,
     [switch]$BatchInputCopies,
+    [switch]$AsyncGpuPipeline,
     [switch]$DirectOutput,
     [switch]$VerboseRuntime,
     [switch]$CaptureExceptions,
@@ -31,6 +32,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'gpu-preflight.ps1')
 . (Join-Path $PSScriptRoot 'game-summary.ps1')
 if ($ProfileGpuBoundary -and !$AsyncInterop) { throw '-ProfileGpuBoundary requires -AsyncInterop.' }
+if ($AsyncGpuPipeline -and !$AsyncInterop) { throw '-AsyncGpuPipeline requires -AsyncInterop.' }
 if ($ProfileKernels -and $ProfileKernelsDeferred) { throw 'Choose either serializing or deferred kernel profiling.' }
 if ($ProfileLegacyStream -and !$ProfileKernelsDeferred) { throw '-ProfileLegacyStream requires -ProfileKernelsDeferred.' }
 if ($DirectOutput -and ($Preset -ne 11 -or !$LocalTextureKernels)) { throw '-DirectOutput requires preset K and -LocalTextureKernels.' }
@@ -223,6 +225,7 @@ $settings = @{
     D4R_DISABLE_INTEROP_LIST_CACHE=$(if ($UncachedInteropLists) { '1' } else { $null });
     D4R_ASYNC_INTEROP=$(if ($AsyncInterop) { '1' } else { $null });
     D4R_BATCH_INPUT_COPIES=$(if ($BatchInputCopies) { '1' } else { $null });
+    D4R_ASYNC_GPU_PIPELINE=$(if ($AsyncGpuPipeline) { '1' } else { $null });
     D4R_SHIM_OUTPUT_DIRECT=$(if ($DirectOutput) { '1' } else { $null });
     D4R_DIAG_DIR=$OutputDirectory; ZLUDA_LOG_DIR=(Join-Path $OutputDirectory 'zluda-trace');
     ZLUDA_CACHE_DIR=$CacheDirectory; PATH=((GamePath 'd4r/hip/bin') + ';' + (GamePath 'd4r/zluda') + ';' + $env:PATH)
