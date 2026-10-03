@@ -105,6 +105,8 @@ inline Settings read_settings(const std::vector<IniEntry>& ini, std::vector<std:
             else notes.push_back("d4r.ini: [DLSS] Model '" + entry.value + "' is not available on Windows (use K or M); using K");
         } else if (name == "dlss.showwatermark") settings.showWatermark = flag(entry, false);
         else if (name == "interop.asyncinterop") settings.asyncInterop = flag(entry, false);
+        else if (name == "interop.batchinputcopies") settings.batchInputCopies = flag(entry, true);
+        else if (name == "interop.asyncgpupipeline") settings.asyncGpuPipeline = flag(entry, true);
         else if (name == "debug.validateoutput") settings.validateOutput = flag(entry, false);
         else if (name == "debug.log") {
             const auto value = lower(entry.value);
