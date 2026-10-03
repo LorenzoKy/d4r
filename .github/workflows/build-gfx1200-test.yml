@@ -1,4 +1,4 @@
-name: Build Windows RX 9060 XT release test
+name: Build Windows RX 9060 XT release test (manual-ready)
 
 on:
   push:
