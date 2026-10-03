@@ -5,6 +5,8 @@ param(
     [string]$GpuArch = 'gfx1200',
     [string]$ZludaRoot,
     [string]$ToolchainRoot,
+    [switch]$PackedKAccumulator,
+    [switch]$Gfx1200LdsPad,
     [string]$BuildDirectory,
     [string]$InstallDirectory
 )
@@ -63,6 +65,8 @@ try {
         $configure += "-DCMAKE_C_COMPILER=$(Join-Path $ToolchainRoot 'bin/x86_64-w64-mingw32-clang.exe')"
     }
     if ($ZludaRoot) { $configure += "-DD4R_ZLUDA_ROOT=$ZludaRoot" }
+    if ($PackedKAccumulator) { $configure += "-DD4R_K_PACKED_ACC=ON" }
+    if ($Gfx1200LdsPad) { $configure += "-DD4R_K_GFX1200_LDS_PAD=ON" }
     $ErrorActionPreference = 'Continue'
     & $cmake @configure 2>&1 | Tee-Object (Join-Path $BuildDirectory 'configure.log')
     $ErrorActionPreference = 'Stop'
