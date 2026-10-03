@@ -3,6 +3,7 @@
 ## Test build — 2026-10-03 — RX 9060 XT / gfx1200
 
 ### Follow-up diagnostic fix
+- Added explicit `D4R_ASYNC_SLOT_WAIT` sampling to expose producer backpressure when all three D3D12 copy slots are still in flight.
 - The translated output array→VRAM copy is now queued asynchronously on the GPU default stream when `D4R_ASYNC_GPU_PIPELINE` is active; the output fence is signalled after that copy instead of forcing a host `cuStreamSynchronize`.
 - Added first-frame output-path diagnostics so a profile run records whether a native output texture kernel actually enabled direct output.
 - Fixed `START-K-PROFILE.cmd`: `-ProfileGpuBoundary` is now accepted by `quick-test.ps1`, forwarded to the Windows runner, and recorded in the diagnostic manifest.
