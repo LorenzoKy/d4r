@@ -142,7 +142,9 @@ def main(argv):
     for key, var in (("VramInterop", "D4R_SHIM_VRAM_INTEROP"), ("InputSync", "D4R_SHIM_INPUT_SYNC"),
                      ("LinearInputs", "D4R_SHIM_LINEAR_INPUTS"),
                      ("DirectOutput", "D4R_SHIM_OUTPUT_DIRECT"), ("ElideNgxSync", "D4R_ELIDE_NGX_SYNC"),
-                     ("EvalSync", "D4R_SHIM_EVAL_SYNC")):
+                     ("EvalSync", "D4R_SHIM_EVAL_SYNC"),
+                     ("AsyncArrayCopies", "D4R_SHIM_ASYNC_2D"),
+                     ("AsyncHostCopies", "D4R_SHIM_ASYNC_COPIES")):
         value = flag("Interop", key)
         if value is not None:
             env[var] = "1" if value else "0"

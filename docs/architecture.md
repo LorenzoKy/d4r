@@ -28,6 +28,7 @@ With VRAM interop and split frames (the defaults when the patched vkd3d-proton i
    - the input copies into CUDA arrays, or none when NGX samples the buffers in place (`LinearInputs`);
    - NGX's evaluation (NGX's own CPU synchronisations are elided with `ElideNgxSync`);
    - the result, written straight into the output buffer by the native output kernel (`DirectOutput`, preset K) or copied there.
+   When array copies are needed, the shim submits all planes asynchronously before waiting for the input batch. If host staging is needed, pinned uploads and readbacks use separate streams so adjacent frames can overlap (`AsyncArrayCopies`, `AsyncHostCopies`). With VRAM interop, `EvalSync = false` keeps evaluation and output readiness on the GPU timeline rather than blocking the CPU.
 3. **Release.** When the GPU finishes, the worker signals the timeline semaphore and the rest of the game's frame runs, now with this frame's result.
 
 The watchdog reports delayed output but never signals an unfinished producer as ready. Retiring features remain registered until their CPU/CUDA jobs drain. The lifetime-aware vkd3d extension retains their staging buffers, imported buffers, conversion images and split semaphore through command-allocator reset or destruction after GPU completion. Discarded recordings are covered too; cleanup no longer relies on a 50 ms delay.

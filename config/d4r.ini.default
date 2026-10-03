@@ -90,11 +90,15 @@ InputSync = true
 ;     NGX runs the native output kernel; drops NVIDIA's "DLSS SDK" watermark)
 ;   ElideNgxSync: removes NGX's internal CPU waits between its GPU stages
 ;   EvalSync = false: no CPU wait between DLSS and the output copy
+;   AsyncArrayCopies: enqueue all 2D CUDA array transfers asynchronously instead of waiting per plane
+;   AsyncHostCopies: overlap pinned-memory uploads and readbacks when system-memory staging is used
 ;   MarkerPollUs: how often (microseconds) the CPU checks for the game's inputs
 LinearInputs = true
 DirectOutput = true
 ElideNgxSync = true
 EvalSync = false
+AsyncArrayCopies = true
+AsyncHostCopies = true
 MarkerPollUs = 200
 
 [Paths]

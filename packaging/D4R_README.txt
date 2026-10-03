@@ -72,6 +72,10 @@ Settings
 - On RDNA4, [Kernels] NativeFp8 is on by default. It selects native FP8 WMMA and the matching
   gfx12-fp8 kernel folder; set it to false to use f16 widening. The FP8 path has not been tested
   on a real RDNA4 GPU.
+- Under [Interop], AsyncArrayCopies and AsyncHostCopies are on by default. They queue 2D array
+  transfers as a batch and overlap pinned-memory staging transfers when that fallback is used.
+  InputSync remains on for correctness. EvalSync=false keeps VRAM-interoperability completion on
+  the GPU timeline; set it to true only for a serialized diagnostic run.
 - If L/M shows extra trails in motion, try [Kernels] NativeSwinEncoders = false with
   PreferAccuracy = true. This uses original translated enc1/enc2 layers while retaining other
   native acceleration. It reduced trails in a captured Townfall sequence on RX 7700 XT and costs

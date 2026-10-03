@@ -558,7 +558,9 @@ static void load_portable_config()
         int fallback;
     } interop[] = {{"VramInterop", "D4R_SHIM_VRAM_INTEROP", 1}, {"InputSync", "D4R_SHIM_INPUT_SYNC", 1},
                    {"LinearInputs", "D4R_SHIM_LINEAR_INPUTS", 1},
-                   {"EvalSync", "D4R_SHIM_EVAL_SYNC", 0}};
+                   {"EvalSync", "D4R_SHIM_EVAL_SYNC", 0},
+                   {"AsyncArrayCopies", "D4R_SHIM_ASYNC_2D", 1},
+                   {"AsyncHostCopies", "D4R_SHIM_ASYNC_COPIES", 1}};
     for (const auto& setting : interop)
         portable_set(setting.variable, ini_flag(ini, "interop", setting.key, setting.fallback) ? "1" : "0");
     portable_set_unix("D4R_ELIDE_NGX_SYNC", ini_flag(ini, "interop", "ElideNgxSync", 1) ? "1" : "0");

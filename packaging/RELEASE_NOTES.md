@@ -1,3 +1,20 @@
+# d4r 0.1.4
+
+This Linux release keeps the existing asynchronous frame pipeline and makes its transfer behavior explicit in each game's `d4r/d4r.ini`.
+
+## Improved
+
+- **Configurable asynchronous and batched transfers.** `AsyncArrayCopies` queues the frame's 2D array copies before the input synchronization boundary. `AsyncHostCopies` enables pinned-memory upload and readback streams when system-memory staging is needed. Both default to on; `InputSync` remains on to keep the current frame's inputs ready before DLSS reads them.
+- **Asynchronous frame completion by default with VRAM interop.** `EvalSync = false` keeps the result hand-off on the GPU timeline instead of waiting on the CPU. Set it to `true` for a serialized diagnostic run.
+
+These settings expose the Linux pipeline's existing asynchronous path; they do not claim a new performance result. Performance and image quality still depend on the GPU, driver and game.
+
+## Also included from 0.1.3
+
+The optional accuracy mode, GLIBC 2.41 compatibility checks, synchronization diagnostics and RDNA4 support described below remain included.
+
+---
+
 # d4r 0.1.3
 
 This release adds an optional accuracy mode and fixes the GLIBC compatibility failure, DLSS artifacts, and stale output-buffer redirects reported after 0.1.2. Accuracy mode is **off by default**.
