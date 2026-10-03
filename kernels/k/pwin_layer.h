@@ -332,48 +332,6 @@ __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, cons
         else
         {
         op_t qop[2];
-#ifdef D4R_K_GFX1200_SPLIT_QKV
-        // gfx1200 has the same 128 KiB LDS / 768 KiB VGPR file as gfx1201, but
-        // half the number of CUs. Keep K/V work in a four-chain group instead
-        // of six concurrent WMMA accumulators. Each chain keeps the exact KT
-        // accumulation order; only independent Q versus K/V groups are split.
-#pragma unroll
-        for (int nt = 0; nt < 2; ++nt)
-        {
-            acc8v d = splat8(0.0f);
-            for (int kt = 0; kt < KT; ++kt)
-            {
-                const op_t row = op_lds(hrow + 16 * kt);
-                d = mma16(op_img(img, (L::T_QKV + (h * 3 * KT + kt) * 2 + nt) * 16 + m), row, d);
-            }
-            qop[nt] = operand_from_f8(d);
-        }
-        acc8v dk[2], dv[2];
-#pragma unroll
-        for (int nt = 0; nt < 2; ++nt)
-        {
-            dk[nt] = splat8(0.0f);
-            dv[nt] = splat8(0.0f);
-        }
-        for (int kt = 0; kt < KT; ++kt)
-        {
-            const op_t row = op_lds(hrow + 16 * kt);
-#pragma unroll
-            for (int nt = 0; nt < 2; ++nt)
-            {
-                dk[nt] = mma16(op_img(img, (L::T_QKV + ((h * 3 + 1) * KT + kt) * 2 + nt) * 16 + m), row, dk[nt]);
-                dv[nt] = mma16(op_img(img, (L::T_QKV + ((h * 3 + 2) * KT + kt) * 2 + nt) * 16 + m), row, dv[nt]);
-            }
-        }
-#pragma unroll
-        for (int nt = 0; nt < 2; ++nt)
-        {
-            op_store(&kl[16 * wv + m][16 * nt], operand_from_f8(dk[nt]));
-#pragma unroll
-            for (int i = 0; i < 8; ++i)
-                vt[16 * nt + wm_acc_row(i)][16 * wv + m] = (half_t)dv[nt][i];
-        }
-#else
         // six independent chains (Q, K, V x 2 n-tiles), each over kt in order
         acc8v dq[6];
 #pragma unroll
@@ -404,8 +362,7 @@ __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, cons
                     for (int i = 0; i < 8; ++i)
                         vt[16 * nt + wm_acc_row(i)][16 * wv + m] = (half_t)d[i];
                 }
-            }
-#endif
+            }f
         block_sync();
         half_t e[4][8];
         float rs = 0.0f;
