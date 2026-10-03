@@ -40,6 +40,32 @@ jobs:
             -BuildDirectory "$PWD\build\windows-gfx1200" `
             -InstallDirectory "$PWD\dist\windows-gfx1200"
 
+      - name: Build gfx1200 K LDS-padding candidate
+        shell: pwsh
+        run: |
+          .\scripts\windows\build-windows-rdna4.ps1 `
+            -RuntimeProfile therock `
+            -GpuArch gfx1200 `
+            -Gfx1200LdsPad `
+            -BuildDirectory "$PWD\build\windows-gfx1200-lds-pad" `
+            -InstallDirectory "$PWD\dist\windows-gfx1200-lds-pad"
+
+      - name: Validate gfx1200 K LDS-padding candidate
+        shell: pwsh
+        run: |
+          $root="$PWD\dist\windows-gfx1200-lds-pad\experimental\k"
+          $layers=@("enc0","enc1","enc2","enc3","enc4","dec5","dec4","dec3","dec2","dec1","dec0")
+          foreach ($layer in $layers) {
+            $path=Join-Path $root ("dltss_pwin_{0}_layer_gfx1200.hsaco" -f $layer)
+            if (!(Test-Path -LiteralPath $path)) { throw "Missing padded K object: $path" }
+            $bytes=[IO.File]::ReadAllBytes($path)
+            if ($bytes.Length -le 4096) { throw "Suspicious/empty padded K object: $path ($($bytes.Length) bytes)" }
+            $text=[Text.Encoding]::ASCII.GetString($bytes)
+            if (!$text.Contains(("dltss_pwin_{0}_layer" -f $layer)) -or !$text.Contains(("dltss_pwin_{0}_layer_prep" -f $layer))) { throw "Padded K object has no exported kernel/prep symbols: $path" }
+            if (!$text.Contains("amdgpu12.00-amd-amdhsa-unknown-gfx1200")) { throw "Padded K object target metadata is not gfx1200: $path" }
+          }
+          Write-Host "PASS gfx1200 LDS candidate: all 11 K objects contain kernel+prep symbols and gfx1200 metadata."
+
       - name: Validate gfx1200 K code objects
         shell: pwsh
         run: |
@@ -67,6 +93,8 @@ jobs:
           path: |
             dist/windows-gfx1200/**
             build/windows-gfx1200/*.log
+            dist/windows-gfx1200-lds-pad/**
+            build/windows-gfx1200-lds-pad/*.log
           if-no-files-found: error
           retention-days: 14
 
@@ -86,7 +114,7 @@ jobs:
           if ($baseHash -ne "72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3") { throw "Unexpected issue10 base SHA256: $baseHash" }
           Add-Type -AssemblyName System.IO.Compression,System.IO.Compression.FileSystem
           [IO.Compression.ZipFile]::ExtractToDirectory($baseZip,$base)
-          $currentK=Join-Path $root "dist\windows-gfx1200\experimental\k"
+          $currentK=Join-Path $root "dist\windows-gfx1200-lds-pad\experimental\k"
           $targetK=Join-Path $base 'files\targets\gfx1200\d4r\native'
           if (!(Test-Path -LiteralPath $targetK)) { throw 'Base quick-test gfx1200 native kernel directory is missing.' }
           foreach ($src in Get-ChildItem $currentK -Filter 'dltss_pwin_*_layer_gfx1200.hsaco') {
@@ -143,14 +171,14 @@ jobs:
             }
           }
           $launchers=@(
-            @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
-            @{name='START-K-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
-            @{name='START-K-DIRECT.cmd'; arguments='-Preset 11 -DirectOutput'},
-            @{name='START-K-DIRECT-PROFILE.cmd'; arguments='-Preset 11 -DirectOutput -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
-            @{name='START-K-DIRECT-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput'},
-            @{name='START-K-DIRECT-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-            @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-            @{name='START-K-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+            @{name='START-K-LDS-PAD-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
+            @{name='START-K-LDS-PAD-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
+            @{name='START-K-LDS-PAD-DIRECT.cmd'; arguments='-Preset 11 -DirectOutput'},
+            @{name='START-K-LDS-PAD-DIRECT-PROFILE.cmd'; arguments='-Preset 11 -DirectOutput -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
@@ -167,7 +195,7 @@ jobs:
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
           @{
             base='windows-quick-test-20261002-issue10'; baseSha256=$baseHash; baseBytes=121092482
-            d4rCommit=$currentCommit; gfx1200KSource='dist/windows-gfx1200/experimental/k'; asyncLaunchers=@('START-K-ASYNC.cmd','START-K-ASYNC-PROFILE.cmd')
+            d4rCommit=$currentCommit; gfx1200KSource='dist/windows-gfx1200-lds-pad/experimental/k'; candidate='gfx1200-k-lds-pad'; asyncLaunchers=@('START-K-LDS-PAD-ASYNC.cmd','START-K-LDS-PAD-ASYNC-PROFILE.cmd')
             note='Current windows-branch gfx1200 shim/diagnostics and 11 K objects overlaid on the validated issue10 quick-test runtime. NVIDIA DLLs remain excluded; tester supplies local originals.'
           } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
           Remove-Item $zip -Force -ErrorAction SilentlyContinue

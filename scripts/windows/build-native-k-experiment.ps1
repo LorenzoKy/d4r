@@ -3,7 +3,7 @@ param([ValidateSet('enc0','enc1','enc2','enc3','enc4','dec5','dec4','dec3','dec2
     [string]$Layer='enc1', [ValidateSet('source','cu','wgp')][string]$Mode='source',
     [ValidateSet('baseline','load','store','both')][string]$NonTemporal='baseline',
     [ValidateSet(0,1,2,4)][int]$PosTiles=0, [switch]$ShareValues, [switch]$PrivateValues,
-    [switch]$PackedAccumulator,
+    [switch]$PackedAccumulator, [switch]$Gfx1200LdsPad,
     [string]$HipRoot, [string]$OutputDirectory)
 $ErrorActionPreference='Stop'
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
@@ -39,6 +39,12 @@ if ($ShareValues) {
     $flags+='-DPOS_VSHARE'
 }
 if ($PackedAccumulator) { $flags+='-DD4R_K_PACKED_ACC' }
+if ($Gfx1200LdsPad) {
+    if ($Layer -notin @('enc0','enc1','enc2','dec0','dec1','dec2','enc3','enc4','dec5','dec4','dec3')) {
+        throw 'LDS padding is supported only by the current eleven K layers.'
+    }
+    $flags+='-DD4R_K_GFX1200_LDS_PAD'
+}
 if ($PrivateValues) { $flags+='-DD4R_K_PRIVATE_V' }
 New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 $object=Join-Path $OutputDirectory "$name.hsaco"
@@ -57,7 +63,7 @@ if ($LASTEXITCODE) { throw 'Native object ISA extraction failed.' }
 if ($LASTEXITCODE) { throw 'Native object metadata extraction failed.' }
 @{layer=$Layer; architecture='gfx1200'; experimental=$true; numericalValidation='pending';
     mode=$Mode; nonTemporal=$NonTemporal; tokenTilesPerWave=$PosTiles; shareValues=[bool]$ShareValues;
-    privateValues=[bool]$PrivateValues;
+    privateValues=[bool]$PrivateValues; gfx1200LdsPad=[bool]$Gfx1200LdsPad;
     packedAccumulator=[bool]$PackedAccumulator;
     compiler=$compiler; arguments=$arguments;
     sourceCommit=(git -C $repo rev-parse HEAD); workingTreeDirty=[bool](& git -C $repo status --porcelain);

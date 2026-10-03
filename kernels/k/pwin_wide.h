@@ -15,7 +15,11 @@ template <class L, int NG> struct WideDims
     // NA: heads per attention round (their K / V images share R)
     static constexpr int NA = NG < 4 ? NG : 4;
     static constexpr int C = L::C, KT = L::KT, H = L::H, NTL = (KT + NG - 1) / NG, ROUNDS = (H + NA - 1) / NA;
-    static constexpr int X0_BYTES = 64 * C * 2, KV_BYTES = NA * 2 * 64 * 32 * 2;
+    static constexpr int KL_STRIDE = PWIN_KL_PAD_STRIDE, VT_STRIDE = PWIN_VT_PAD_STRIDE;
+    static constexpr int X0_BYTES = 64 * C * 2;
+    static constexpr int KL_BYTES = NA * 64 * KL_STRIDE * 2;
+    static constexpr int VT_BYTES = NA * 32 * VT_STRIDE * 2;
+    static constexpr int KV_BYTES = KL_BYTES + VT_BYTES;
     // MLP hidden chunks: one per group and round, double-buffered while that fits
     static constexpr int NB = NG <= 4 ? 2 : 1, MROUNDS = (L::NMLP + NG - 1) / NG, HID_BYTES = NB * NG * 64 * 32 * 2;
     static constexpr int R_BYTES = X0_BYTES > KV_BYTES ? (X0_BYTES > HID_BYTES ? X0_BYTES : HID_BYTES)
@@ -82,10 +86,11 @@ __device__ void wide_core(const PwinParams& p, const u8v* __restrict__ img, cons
                 acc[j][i] = (float)vv[i];
         }
     }
-    half_t(*kl)[64][32] = (half_t(*)[64][32])R;                   // [group][token][dim]
     constexpr int NA = D::NA;
-    half_t(*vt)[32][64] = (half_t(*)[32][64])(R + NA * 64 * 32 * 2); // [group][dim][token]
-    half_t(*ob)[64][32] = (half_t(*)[64][32])R;                   // [group][token][dim] (after K / V)
+    half_t(*kl)[64][D::KL_STRIDE] = (half_t(*)[64][D::KL_STRIDE])R; // [group][token][dim], padded row stride
+    half_t(*vt)[32][D::VT_STRIDE] = (half_t(*)[32][D::VT_STRIDE])
+        (R + NA * 64 * D::KL_STRIDE * 2); // [group][dim][token], padded row stride
+    half_t(*ob)[64][D::KL_STRIDE] = (half_t(*)[64][D::KL_STRIDE])R; // [group][token][dim] (after K / V)
     for (int r = 0; r < D::ROUNDS; ++r)
     {
         const int h = g < NA ? r * NA + g : H;

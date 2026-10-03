@@ -664,8 +664,8 @@ __device__ void pwin_plain(const PwinParams& p, const u8v* __restrict__ img, con
     constexpr int C = L::C;
     __shared__ __attribute__((aligned(16))) half_t act[64][C];
     __shared__ __attribute__((aligned(16))) half_t hb[64][C];
-    __shared__ __attribute__((aligned(16))) half_t kl[64][32];
-    __shared__ __attribute__((aligned(16))) half_t vt[32][64];
+    __shared__ __attribute__((aligned(16))) half_t kl[64][PWIN_KL_PAD_STRIDE];
+    __shared__ __attribute__((aligned(16))) half_t vt[32][PWIN_VT_PAD_STRIDE];
     const uint32_t l = lane_id(), m = l & 15, hf = l >> 4;
     const int wv = threadIdx.z, tok = 16 * wv + m, ty = tok >> 3, tx = tok & 7;
     const int bx = blockIdx.x, by = blockIdx.y;
