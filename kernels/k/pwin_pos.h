@@ -274,10 +274,12 @@ __device__ void pos_encoder(const PwinParams& p0, const u8v* __restrict__ img, c
     const int my = m >> 2, mx = m & 3;
     const int Ym = (8 * by - p.sy) / 2 + my, Xm = (8 * bx - p.sx) / 2 + mx;
     const bool minb = Ym >= 0 && Ym < p.H / 2 && Xm >= 0 && Xm < p.W / 2;
-    half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * L::COUT;
-    for (int vt = wv; vt < L::PMT; vt += NW)
+    if (minb)
     {
-        half_t vv[8];
+        half_t* mout = (half_t*)p.out24 + (size_t)(Ym * (p.W / 2) + Xm) * L::COUT;
+        for (int vt = wv; vt < L::PMT; vt += NW)
+        {
+            half_t vv[8];
         dvec8(p.w, L::PMB + 32 * vt, vv);
         acc8v d;
 #pragma unroll
@@ -290,7 +292,8 @@ __device__ void pos_encoder(const PwinParams& p0, const u8v* __restrict__ img, c
             d = mma16(op_img(img, (L::T_PM + ks * L::PMT + vt) * 16 + m), op_lds(&act[src][16 * (ks % L::KT)]), d);
         }
         const int g = vt / (L::NPA / 16), u = vt % (L::NPA / 16), valid = L::NPW - 16 * u;
-        op_gstore(mout + L::NPW * g + 16 * u, operand_from_f8(d), minb, valid);
+            op_gstore(mout + L::NPW * g + 16 * u, operand_from_f8(d), true, valid);
+        }
     }
     STAMP(8);
 }
@@ -348,6 +351,8 @@ __device__ void pos_decoder(const PwinParams& p, const u8v* __restrict__ img, co
     {
         const int tok = 16 * (wv * MT + mi) + m, Y0 = 8 * by - p.sy + (tok >> 3), X0 = 8 * bx - p.sx + (tok & 7);
         const bool inb = Y0 >= 0 && Y0 < p.H && X0 >= 0 && X0 < p.W;
+        if (!inb)
+            continue;
         half_t* hout = (half_t*)p.out24 + (size_t)(Y0 * p.W + X0) * L::NOUT;
 #pragma unroll
         for (int nt = 0; nt < L::NOUTA / 16; ++nt)
@@ -361,10 +366,9 @@ __device__ void pos_decoder(const PwinParams& p, const u8v* __restrict__ img, co
 #pragma unroll
             for (int kt = 0; kt < L::KT; ++kt)
                 d = mma16(op_img(img, (L::T_HEAD + kt * (L::NOUTA / 16) + nt) * 16 + m), op_lds(&act[tok][16 * kt]), d);
-            op_gstore(hout + 16 * nt, operand_from_f8(d), inb, L::NOUT - 16 * nt);
+            op_gstore(hout + 16 * nt, operand_from_f8(d), true, L::NOUT - 16 * nt);
         }
     }
-}
 
 #define POS_ENCODER(NAME, H, C, COUT, CIN, MT)                                                                     \
     using NAME##_L = PwinEmbLayout<H, C, COUT, true, CIN>;                                                         \
