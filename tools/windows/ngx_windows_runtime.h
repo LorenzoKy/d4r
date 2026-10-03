@@ -227,6 +227,7 @@ class Feature {
     // When enabled explicitly, the native K Hiluma output surface writes
     // directly into the shared/canonical linear output buffer.
     bool outputDirect_ = false;
+    bool outputRedirectConfigured_ = false;
     struct Plane {
         ComPtr<ID3D12Resource> texture;
         D3D12_RESOURCE_DESC desc{};
@@ -555,6 +556,24 @@ private:
                 }
                 plane.image = std::make_unique<cuda::Image>(rt_->images, unsigned(desc.Width), desc.Height, half ? 16 : 32, channels, i == 3, i == 0 ? 1 : 0);
                 plane.desc = desc; plane.spec = spec;
+                if (i == 3) {
+                    outputDirect_ = false;
+                    outputRedirectConfigured_ = false;
+                    if (std::getenv("D4R_SHIM_OUTPUT_DIRECT")) {
+                        // The R2 redirect fast-path is a Windows K-only RGBA16F path.
+                        // Install it once when the output image is (re)created: the
+                        // destination is our persistent shared linear buffer, so the
+                        // per-frame surface-object HtoD write is pure driver overhead.
+                        if (!spec.direct || spec.storage != pixel::rgba16f || plane.canonical)
+                            throw std::runtime_error("Direct-output requires a direct RGBA16F K output");
+                        const uint64_t pitch = plane.shared->footprint.Footprint.RowPitch;
+                        if (pitch > UINT32_MAX) throw std::runtime_error("Direct-output pitch exceeds redirect ABI");
+                        const uintptr_t target = reinterpret_cast<uintptr_t>(plane.shared->mapped);
+                        plane.image->set_redirect(static_cast<CUdeviceptr>(target), static_cast<uint32_t>(pitch));
+                        outputDirect_ = true;
+                        outputRedirectConfigured_ = true;
+                    }
+                }
                 std::printf("D4R_FORMAT plane=%s dxgi=%u canonical_channels=%u canonical_bits=%u gpu_conversion=%u cpu_copy=0\n",
                     names[i], unsigned(desc.Format), channels, half ? 16u : 32u, !spec.direct);
             }
@@ -587,7 +606,11 @@ private:
             stage = std::chrono::steady_clock::now();
         };
         if (ticket) rt_->timeline->wait_ready(ticket->input); else rt_->timeline->wait_input(queue);
-        rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "Interop input producer completion");
+        // In async mode the timeline wait and previous frame both establish
+        // completion: wait_ready() synchronizes the interop stream, while the
+        // prior execute_cuda() already did the full NGX context completion.
+        // A second global context sync here only burns worker CPU time.
+        if (!ticket) rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "Interop input producer completion");
         mark("input_fence_wait");
         const bool batchInputs = std::getenv("D4R_BATCH_INPUT_COPIES") != nullptr;
         for (unsigned i : {0u, 1u, 2u, 4u}) if (planes_[i].texture) {
@@ -620,22 +643,8 @@ private:
                 std::printf("D4R_ARRAY_VERIFY plane=%u first=%08x\n", i, first);
             }
         }
-        outputDirect_ = false;
-        const bool directOutput = std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr;
         auto& output = planes_[3];
-        if (directOutput) {
-            // tex_common's R2 redirect fast-path is intentionally limited to the
-            // native K RGBA16F surface layout. Never redirect other output formats.
-            if (!output.spec.direct || output.spec.storage != pixel::rgba16f || output.canonical) {
-                throw std::runtime_error("Direct-output requires a direct RGBA16F K output");
-            }
-            const uintptr_t target = reinterpret_cast<uintptr_t>(output.shared->mapped);
-            const uint64_t pitch = output.shared->footprint.Footprint.RowPitch;
-            if (pitch > UINT32_MAX) throw std::runtime_error("Direct-output pitch exceeds redirect ABI");
-            output.image->set_redirect(static_cast<CUdeviceptr>(target), static_cast<uint32_t>(pitch));
-            outputDirect_ = true;
-            mark("output_direct_redirect");
-        }
+        if (outputRedirectConfigured_) mark("output_direct_redirect_cached");
         ngx_check(rt_->evaluate(handle_, parameters_, nullptr), "CUDA EvaluateFeature");
         mark("ngx_evaluate_host");
         // NGX can use internal nonblocking streams. The default stream alone
