@@ -145,6 +145,8 @@ jobs:
           $launchers=@(
             @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
             @{name='START-K-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
+            @{name='START-K-DIRECT.cmd'; arguments='-Preset 11 -DirectOutput'},
+            @{name='START-K-DIRECT-PROFILE.cmd'; arguments='-Preset 11 -DirectOutput -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
             @{name='START-K-DIRECT-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput'},
             @{name='START-K-DIRECT-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
             @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
