@@ -99,8 +99,9 @@ jobs:
           $bin=Join-Path $root "dist\windows-gfx1200\bin"
           $commonShim=Join-Path $bin 'd4r_nvngx.dll'
           if (!(Test-Path -LiteralPath $commonShim)) { throw "Current gfx1200 overlay is missing: $commonShim" }
-          $commonDest=Join-Path $base 'files\common\d4r\nvngx.dll'
-          if (!(Test-Path -LiteralPath $commonDest)) { throw 'Base quick-test common d4r/nvngx.dll is missing.' }
+          $commonCandidates=@(Get-ChildItem $base -Recurse -File -Filter 'nvngx.dll' | Where-Object { $_.FullName -match '\\files\\common\\' })
+          if (!$commonCandidates.Count) { throw 'Base quick-test common nvngx.dll is missing.' }
+          $commonDest=$commonCandidates[0].FullName
           Copy-Item $commonShim $commonDest -Force
           $targetOverlay=@(
             @{src=(Join-Path $bin 'd4r_gpu_inventory.exe'); rel='files\targets\gfx1200\d4r\d4r_gpu_inventory.exe'},
