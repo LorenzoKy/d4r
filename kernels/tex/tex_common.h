@@ -297,18 +297,18 @@ FP_BODY void sust_p_body(uint64_t surface, int32_t x, int32_t y, uint32_t a, uin
 // address is at byte 88, rows `pitch` bytes apart. Out-of-range coordinates are dropped as by .zero stores.
 extern "C" __attribute__((device)) int __ockl_image_width_2D(tsharp_t* image);
 extern "C" __attribute__((device)) int __ockl_image_height_2D(tsharp_t* image);
-__attribute__((device)) static inline uint32_t redirect_pitch(uint64_t surface)
+__attribute__((const, device)) static inline uint32_t redirect_pitch(uint64_t surface)
 {
     // 'R2' tag in the high half (other handles may have data there), row pitch / 8 in the low half
     const uint32_t word = ((const __attribute__((address_space(4))) uint32_t*)surface)[21];
     return (word >> 16) == 0x5232u ? (word & 0xffffu) << 3 : 0u;
 }
-__attribute__((device)) static inline uint8_t* redirect_row(uint64_t surface, int32_t y, uint32_t pitch)
+__attribute__((const, device)) static inline uint8_t* redirect_row(uint64_t surface, int32_t y, uint32_t pitch)
 {
     const uint64_t base = *(const __attribute__((address_space(4))) uint64_t*)(surface + 88);
     return (uint8_t*)(base + (uint64_t)(uint32_t)y * pitch);
 }
-__attribute__((device)) static inline bool redirect_inside(uint64_t surface, int32_t x, int32_t y)
+__attribute__((const, device)) static inline bool redirect_inside(uint64_t surface, int32_t x, int32_t y)
 {
     tsharp_t* image = (tsharp_t*)surface;
     return x >= 0 && y >= 0 && x < __ockl_image_width_2D(image) && y < __ockl_image_height_2D(image);
