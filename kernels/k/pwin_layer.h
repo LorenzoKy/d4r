@@ -248,7 +248,7 @@ __device__ __forceinline__ float row_sum_total(float rs, const half_t (&e)[4][8]
 // On return act holds the block output y. hb: normalised input rows; K/V of one head at a time in kl/vt.
 template <class L>
 __device__ void pwin_core(const PwinParams& p, const u8v* __restrict__ img, const u4v* __restrict__ bias,
-                          half_t (*act)[L::C], half_t (*hb)[L::C], half_t (*kl)[32], half_t (*vt)[64])
+                          half_t (* __restrict__ act)[L::C], half_t (* __restrict__ hb)[L::C], half_t (* __restrict__ kl)[32], half_t (* __restrict__ vt)[64])
 {
     constexpr int C = L::C, KT = L::KT, H = L::H;
     const uint32_t l = lane_id(), m = l & 15, hf = l >> 4;
