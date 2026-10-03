@@ -20,6 +20,7 @@ param(
     [switch]$UncachedInteropLists,
     [switch]$AsyncInterop,
     [switch]$BatchInputCopies,
+    [switch]$DirectOutput,
     [switch]$VerboseRuntime,
     [switch]$CaptureExceptions,
     [string[]]$GameArguments = @('-dx12'),
@@ -221,6 +222,7 @@ $settings = @{
     D4R_DISABLE_INTEROP_LIST_CACHE=$(if ($UncachedInteropLists) { '1' } else { $null });
     D4R_ASYNC_INTEROP=$(if ($AsyncInterop) { '1' } else { $null });
     D4R_BATCH_INPUT_COPIES=$(if ($BatchInputCopies) { '1' } else { $null });
+    D4R_SHIM_OUTPUT_DIRECT=$(if ($DirectOutput) { '1' } else { $null });
     D4R_DIAG_DIR=$OutputDirectory; ZLUDA_LOG_DIR=(Join-Path $OutputDirectory 'zluda-trace');
     ZLUDA_CACHE_DIR=$CacheDirectory; PATH=((GamePath 'd4r/hip/bin') + ';' + (GamePath 'd4r/zluda') + ';' + $env:PATH)
 }
@@ -257,7 +259,7 @@ try {
     }
     foreach ($key in $settings.Keys) { $old[$key] = [Environment]::GetEnvironmentVariable($key,'Process'); [Environment]::SetEnvironmentVariable($key,$settings[$key],'Process') }
     @{preset=$Preset; game=$GameExe; package=$metadata; attachedDebugger=[bool]$CaptureExceptions;
-      diagnostics=@{asyncInterop=[bool]$AsyncInterop; batchInputCopies=[bool]$BatchInputCopies; validateOutput=[bool]$ValidateOutput;
+      diagnostics=@{asyncInterop=[bool]$AsyncInterop; batchInputCopies=[bool]$BatchInputCopies; directOutput=[bool]$DirectOutput; validateOutput=[bool]$ValidateOutput;
         profileGpuBoundary=[bool]$ProfileGpuBoundary; profileStages=[bool]$ProfileStages; profileCudaApi=[bool]$ProfileCudaApi;
         profileKernels=[bool]$ProfileKernels; profileKernelsDeferred=[bool]$ProfileKernelsDeferred;
         profileLegacyStream=[bool]$ProfileLegacyStream; kernelProfileEvery=$KernelProfileEvery};
