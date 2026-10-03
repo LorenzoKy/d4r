@@ -33,7 +33,11 @@ def main():
     parser.add_argument('--output-directory', type=pathlib.Path, required=True)
     parser.add_argument('--gpu-arch', choices=tuple(TARGETS), default='gfx1201')
     parser.add_argument('--shader-mode', choices=['cu', 'wgp'], default='cu')
+    parser.add_argument('--direct-output-fast', action='store_true',
+                        help='private K output build: omit redundant CUDA-format checks on redirected RGBA16F stores')
     args = parser.parse_args()
+    if args.direct_output_fast and not args.kernel.startswith('hiluma_engine_output_'):
+        parser.error('--direct-output-fast is valid only for K output texture variants')
     if not re.fullmatch(r'hiluma_engine_(?:output_depth(?:inv|reg)_mv(?:hi|lo)_(?:hdr|ldr)(?:_max)?|'
                         r'input_depth(?:inv|reg)_mv(?:hi|lo)_(?:hdr|ldr))_v2_rel', args.kernel):
         parser.error('this private experimental build recipe supports K v2 input/output variants only')
@@ -81,10 +85,13 @@ def main():
     if not any(rewrite_counts.values()):
         raise RuntimeError('PTX recipe made no changes; refuse a no-op override')
     raw, ir, extra = work / 'raw.bc', work / 'raw.ll', work / 'extra.bc'
+    helper_defines = ['-DD4R_ACCURACY', '-DD4R_KERNEL_NAME=' + args.kernel]
+    if args.direct_output_fast:
+        helper_defines.append('-DD4R_DIRECT_OUTPUT_FAST')
     run('compile-helper', [tools['clang++'], '-x', 'hip', '-std=c++20', '-nogpuinc', '-nogpulib', '-O3',
                           '-mno-wavefrontsize64', '--offload-device-only', '--offload-arch=' + args.gpu_arch,
                           '-fgpu-rdc', '-emit-llvm', '-c', '-Xclang', '-fdenormal-fp-math=dynamic',
-                          '-DD4R_ACCURACY', '-DD4R_KERNEL_NAME=' + args.kernel,
+                          *helper_defines,
                           '-o', raw, repo / 'kernels/tex/sust_only.hip'])
     run('disassemble', [tools['llvm-dis'], raw, '-o', ir])
     lines = []
@@ -110,7 +117,8 @@ def main():
     run('manifest', [sys.executable, repo / 'kernels/tools/kernel_manifest.py', output, args.dlss_dll])
     metadata = dict(architecture=args.gpu_arch, accuracy=True, nativeFP8=False, shaderMode=args.shader_mode,
                     lastBuiltKernel=args.kernel, lastRecipeRewrites=rewrite_counts,
-                    privateNvidiaDerivedCode=True, validation='not yet validated; do not install before comparison',
+                    privateNvidiaDerivedCode=True, directOutputFast=bool(args.direct_output_fast),
+                    validation='not yet validated; do not install before comparison',
                     dlssSha256=hashlib.sha256(args.dlss_dll.read_bytes()).hexdigest(),
                     zludaBuild=json.loads((zluda / 'build-info.json').read_text(encoding='utf-8-sig')),
                     compiler=subprocess.check_output([str(tools['clang++']), '--version'], env=env).decode(errors='replace'),
