@@ -1,0 +1,134 @@
+name: Package RX 9060 XT fast-K async quick-test
+
+on:
+  push:
+    branches: [windows]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-rx9060xt-fast-k-package
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Windows branch
+        uses: actions/checkout@v4
+        with:
+          ref: windows
+          submodules: recursive
+
+      - name: Prepare Windows build tools
+        shell: pwsh
+        run: .\scripts\windows\setup-windows-tools.ps1 -RuntimeProfile therock
+
+      - name: Build gfx1200 fast-K F32 accumulator candidate
+        shell: pwsh
+        run: |
+          .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -FastKAccumulator -BuildDirectory "$PWD\build\windows-gfx1200-fast-k" -InstallDirectory "$PWD\dist\windows-gfx1200-fast-k"
+
+      - name: Validate gfx1200 fast-K objects
+        shell: pwsh
+        run: |
+          $root="$PWD\dist\windows-gfx1200-fast-k\experimental\k"
+          $layers=@("enc0","enc1","enc2","enc3","enc4","dec5","dec4","dec3","dec2","dec1","dec0")
+          foreach ($layer in $layers) {
+            $path=Join-Path $root ("dltss_pwin_{0}_layer_gfx1200.hsaco" -f $layer)
+            if (!(Test-Path $path)) { throw "Missing K object: $path" }
+            $bytes=[IO.File]::ReadAllBytes($path)
+            if ($bytes.Length -le 4096) { throw "Suspicious K object: $path ($($bytes.Length) bytes)" }
+            $ascii=[Text.Encoding]::ASCII.GetString($bytes)
+            if (!$ascii.Contains(("dltss_pwin_{0}_layer" -f $layer)) -or !$ascii.Contains(("dltss_pwin_{0}_layer_prep" -f $layer))) { throw "Missing kernel/prep symbols: $path" }
+            if (!$ascii.Contains("amdgpu12.00-amd-amdhsa-unknown-gfx1200")) { throw "Wrong target metadata: $path" }
+          }
+          Write-Host "PASS: gfx1200 fast-K F32-accumulator, 11/11 objects."
+
+      - name: Package from issue10 runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root="$PWD"
+          $out="$root\dist\quick-test-fast-k"
+          $base="$out\issue10"
+          $baseZip="$out\issue10.zip"
+          $src="$root\dist\windows-gfx1200-fast-k"
+          $zip="$out\d4r-windows-quick-test-gfx1200-fast-k.zip"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/xdfnx-dev/d4r/releases/download/windows-quick-test-20261002-issue10/d4r-windows-quick-test.zip" -OutFile $baseZip
+          if ((Get-Item $baseZip).Length -ne 121092482) { throw "Unexpected issue10 base size." }
+          if ((Get-FileHash $baseZip -Algorithm SHA256).Hash.ToLowerInvariant() -ne "72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3") { throw "Unexpected issue10 base SHA256." }
+          Add-Type -AssemblyName System.IO.Compression,System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($baseZip,$base)
+          foreach ($srcK in Get-ChildItem (Join-Path $src 'experimental/k') -Filter 'dltss_pwin_*_layer_gfx1200.hsaco') {
+            if ($srcK.Name -notmatch '^dltss_pwin_(.+)_layer_gfx1200\.hsaco$') { throw "Unexpected K object: $($srcK.Name)" }
+            $destK=Get-ChildItem (Join-Path $base 'files/targets/gfx1200/d4r/native') -File -Filter ("dltss_pwin_"+$Matches[1]+"_layer*.hsaco") | Select-Object -First 1
+            if (!$destK) { throw "No target K object for $($Matches[1])" }
+            Copy-Item $srcK.FullName $destK.FullName -Force
+          }
+          Copy-Item (Join-Path $src 'bin/d4r_nvngx.dll') (Join-Path $base 'files/common/d4r/nvngx.dll') -Force
+          foreach ($name in @('windows-game.ps1','game-summary.ps1','gpu-target.ps1','gpu-preflight.ps1')) {
+            Copy-Item (Join-Path $root ('scripts/windows/'+$name)) (Join-Path $base ('files/common/'+$name)) -Force
+          }
+          Copy-Item (Join-Path $root 'scripts/windows/quick-test.ps1') (Join-Path $base 'files/quick-test.ps1') -Force
+          Copy-Item (Join-Path $root 'tools/windows/gpu-targets.json') (Join-Path $base 'files/common/gpu-targets.json') -Force
+          Copy-Item (Join-Path $root 'docs/windows-quick-test.txt') (Join-Path $base 'READ-ME-FIRST.txt') -Force
+          Copy-Item (Join-Path $root 'scripts/windows/d4r-check.ps1') (Join-Path $base 'files/common/d4r-check.ps1') -Force
+          $manifestPath=Join-Path $base 'files/package.json'
+          $manifest=Get-Content $manifestPath -Raw | ConvertFrom-Json
+          foreach ($entry in @($manifest.files)) {
+            $full=Join-Path $base $entry.path
+            if (Test-Path $full) { $entry.sha256=(Get-FileHash $full -Algorithm SHA256).Hash }
+          }
+          foreach ($entry in @($manifest.commonFiles)) {
+            $full=Join-Path $base ('files/common/'+$entry.path)
+            if (Test-Path $full) { $entry.sha256=(Get-FileHash $full -Algorithm SHA256).Hash }
+          }
+          foreach ($targetProp in $manifest.targets.PSObject.Properties) {
+            foreach ($entry in @($targetProp.Value.files)) {
+              $full=Join-Path $base ('files/targets/'+$targetProp.Name+'/'+$entry.path)
+              if (Test-Path $full) { $entry.sha256=(Get-FileHash $full -Algorithm SHA256).Hash }
+            }
+          }
+          $commit=(& git rev-parse HEAD).Trim()
+          $manifest.packageCommit=$commit
+          $manifest.targets.gfx1200.binarySourceCommit=$commit
+          $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT fast-K F32 accumulator user test pending'
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
+
+          $launchers=@(
+            @{name='START-K-FAST.cmd'; arguments='-Preset 11'},
+            @{name='START-K-FAST-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
+            @{name='START-K-FAST-PROFILE-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-PROFILE-LEGACY.cmd'; arguments='-Preset 11 -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+          )
+          foreach ($launch in $launchers) {
+            $path=Join-Path $base $launch.name
+            @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" '+$launch.arguments,'pause') | Set-Content $path -Encoding ASCII
+            $manifest.files += @{path=$launch.name;sha256=(Get-FileHash $path -Algorithm SHA256).Hash;version=$null}
+          }
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
+
+          @{base='windows-quick-test-20261002-issue10';baseBytes=121092482;baseSha256='72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3';packageCommit=$commit;candidate='D4R_K_FP16_BASELINE=OFF; D4R_K_PACKED_ACC=OFF; D4R_K_GFX1200_LDS_PAD=OFF; ASYNC_INTEROP=AVAILABLE';binarySourceCommit=$commit;note='Public gfx1200 fast-K F32-accumulator candidate over issue10 runtime. Native K sources are public; NVIDIA DLLs remain user-supplied. Private texture overrides are excluded.'} | ConvertTo-Json | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
+          Remove-Item $zip -Force -ErrorAction SilentlyContinue
+          [IO.Compression.ZipFile]::CreateFromDirectory($base,$zip,[IO.Compression.CompressionLevel]::Optimal,$false)
+          $bytes=(Get-Item $zip).Length
+          if ($bytes -lt 121092482) { throw "Final ZIP is smaller than issue10: $bytes bytes" }
+          $sha=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath ($zip+'.sha256') -Value ($sha+'  '+[IO.Path]::GetFileName($zip)) -Encoding ASCII
+          Write-Host "FINAL QUICK TEST ZIP: $zip"
+          Write-Host "FINAL QUICK TEST BYTES: $bytes"
+          Write-Host "FINAL QUICK TEST SHA256: $sha"
+
+      - name: Upload RX 9060 XT fast-K quick-test
+        uses: actions/upload-artifact@v4
+        with:
+          name: d4r-windows-quick-test-gfx1200-fast-k
+          path: |
+            dist/quick-test-fast-k/d4r-windows-quick-test-gfx1200-fast-k.zip
+            dist/quick-test-fast-k/d4r-windows-quick-test-gfx1200-fast-k.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
