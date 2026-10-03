@@ -26,15 +26,15 @@ jobs:
         shell: pwsh
         run: .\scripts\windows\setup-windows-tools.ps1 -RuntimeProfile therock
 
-      - name: Build gfx1200 packed-accumulator K candidate
+      - name: Build gfx1200 K baseline for async interop candidate
         shell: pwsh
         run: |
-          .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -PackedKAccumulator -BuildDirectory "$PWD\build\windows-gfx1200-packed" -InstallDirectory "$PWD\dist\windows-gfx1200-packed"
+          .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -BuildDirectory "$PWD\build\windows-gfx1200-async" -InstallDirectory "$PWD\dist\windows-gfx1200-async"
 
-      - name: Validate gfx1200 packed K code objects
+      - name: Validate gfx1200 K code objects
         shell: pwsh
         run: |
-          $root="$PWD\dist\windows-gfx1200-packed\experimental\k"
+          $root="$PWD\dist\windows-gfx1200-async\experimental\k"
           $layers=@("enc0","enc1","enc2","enc3","enc4","dec5","dec4","dec3","dec2","dec1","dec0")
           foreach ($layer in $layers) {
             $path=Join-Path $root ("dltss_pwin_{0}_layer_gfx1200.hsaco" -f $layer)
@@ -45,18 +45,18 @@ jobs:
             if (!$ascii.Contains(("dltss_pwin_{0}_layer" -f $layer)) -or !$ascii.Contains(("dltss_pwin_{0}_layer_prep" -f $layer))) { throw "Missing kernel/prep symbols: $path" }
             if (!$ascii.Contains("amdgpu12.00-amd-amdhsa-unknown-gfx1200")) { throw "Wrong target metadata: $path" }
           }
-          Write-Host "PASS: packed-accumulator gfx1200 K, 11/11 objects."
+          Write-Host "PASS: gfx1200 strict-F16 K baseline, 11/11 objects."
 
       - name: Package from issue10 runtime
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $root="$PWD"
-          $out="$root\dist\quick-test-packed"
+          $out="$root\dist\quick-test-async"
           $base="$out\issue10"
           $baseZip="$out\issue10.zip"
           $src="$root\dist\windows-gfx1200-packed"
-          $zip="$out\d4r-windows-quick-test-gfx1200-packed.zip"
+          $zip="$out\d4r-windows-quick-test-gfx1200-async.zip"
           New-Item -ItemType Directory -Force $out | Out-Null
           Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/xdfnx-dev/d4r/releases/download/windows-quick-test-20261002-issue10/d4r-windows-quick-test.zip" -OutFile $baseZip
           if ((Get-Item $baseZip).Length -ne 121092482) { throw "Unexpected issue10 base size." }
@@ -101,9 +101,18 @@ jobs:
           $profileCmd=Join-Path $base 'START-K-PROFILE.cmd'
           @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17','pause') | Set-Content $profileCmd -Encoding ASCII
           $profileEntry=@{path='START-K-PROFILE.cmd';sha256=(Get-FileHash $profileCmd -Algorithm SHA256).Hash;version=$null}
-          $manifest.files += $profileEntry
+          $asyncCmd=Join-Path $base 'START-K-ASYNC.cmd'
+          @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -AsyncInterop','pause') | Set-Content $asyncCmd -Encoding ASCII
+          $asyncEntry=@{path='START-K-ASYNC.cmd';sha256=(Get-FileHash $asyncCmd -Algorithm SHA256).Hash;version=$null}
+          $legacyCmd=Join-Path $base 'START-K-PROFILE-LEGACY.cmd'
+          @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17','pause') | Set-Content $legacyCmd -Encoding ASCII
+          $legacyEntry=@{path='START-K-PROFILE-LEGACY.cmd';sha256=(Get-FileHash $legacyCmd -Algorithm SHA256).Hash;version=$null}
+          $asyncProfileCmd=Join-Path $base 'START-K-ASYNC-PROFILE.cmd'
+          @('@echo off','cd /d "%~dp0"','"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17','pause') | Set-Content $asyncProfileCmd -Encoding ASCII
+          $asyncProfileEntry=@{path='START-K-ASYNC-PROFILE.cmd';sha256=(Get-FileHash $asyncProfileCmd -Algorithm SHA256).Hash;version=$null}
+          $manifest.files += @($profileEntry,$asyncEntry,$legacyEntry,$asyncProfileEntry)
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
-          @{base='windows-quick-test-20261002-issue10';baseBytes=121092482;baseSha256='72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3';packageCommit=$commit;candidate='D4R_K_PACKED_ACC=ON; D4R_K_GFX1200_LDS_PAD=OFF';binarySourceCommit=$commit;note='Current windows-branch packed-accumulator K candidate over the validated issue10 portable runtime. NVIDIA DLLs remain user-supplied.'} | ConvertTo-Json | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
+          @{base='windows-quick-test-20261002-issue10';baseBytes=121092482;baseSha256='72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3';packageCommit=$commit;candidate='D4R_K_PACKED_ACC=OFF; D4R_K_GFX1200_LDS_PAD=OFF; ASYNC_INTEROP=AVAILABLE';binarySourceCommit=$commit;note='Current windows-branch strict-F16 K baseline with async interop launchers over the validated issue10 portable runtime. NVIDIA DLLs remain user-supplied.'} | ConvertTo-Json | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           [IO.Compression.ZipFile]::CreateFromDirectory($base,$zip,[IO.Compression.CompressionLevel]::Optimal,$false)
           $bytes=(Get-Item $zip).Length
