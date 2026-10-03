@@ -55,7 +55,7 @@ jobs:
           $out="$root\dist\quick-test-async"
           $base="$out\issue10"
           $baseZip="$out\issue10.zip"
-          $src="$root\dist\windows-gfx1200-packed"
+          $src="$root\dist\windows-gfx1200-async"
           $zip="$out\d4r-windows-quick-test-gfx1200-async.zip"
           New-Item -ItemType Directory -Force $out | Out-Null
           Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/xdfnx-dev/d4r/releases/download/windows-quick-test-20261002-issue10/d4r-windows-quick-test.zip" -OutFile $baseZip
@@ -122,10 +122,10 @@ jobs:
           Write-Host "FINAL QUICK TEST BYTES: $bytes"
           Write-Host "FINAL QUICK TEST SHA256: $((Get-FileHash $zip -Algorithm SHA256).Hash)"
 
-      - name: Upload RX 9060 XT packed K quick-test
+      - name: Upload RX 9060 XT async interop quick-test
         uses: actions/upload-artifact@v4
         with:
-          name: d4r-windows-quick-test-gfx1200-packed
+          name: d4r-windows-quick-test-gfx1200-async
           path: |
             dist/quick-test-packed/d4r-windows-quick-test-gfx1200-packed.zip
             dist/quick-test-packed/d4r-windows-quick-test-gfx1200-packed.zip.sha256
