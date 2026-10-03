@@ -248,7 +248,7 @@ class Feature {
         (void)rt_->cuda.cuCtxSynchronize();
         if (handle_) { (void)rt_->release(handle_); handle_ = nullptr; }
         for (auto& object : linearInput_) {
-            if (object) (void)rt_->cuda.cuTexObjectDestroy(object);
+            if (object) (void)rt_->images.cuTexObjectDestroy(object);
             object = 0;
         }
         for (auto& plane : planes_) {
@@ -561,7 +561,7 @@ private:
             if (!plane.image || plane.desc.Width != desc.Width || plane.desc.Height != desc.Height || plane.desc.Format != desc.Format) {
                 rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "Synchronize(resize interop)");
                 if (linearInput_[i]) {
-                    (void)rt_->cuda.cuTexObjectDestroy(linearInput_[i]);
+                    (void)rt_->images.cuTexObjectDestroy(linearInput_[i]);
                     linearInput_[i] = 0;
                     linearInputPointer_[i] = 0; linearInputPitch_[i] = 0;
                     linearInputWidth_[i] = linearInputHeight_[i] = 0;
@@ -600,7 +600,7 @@ private:
                         linearInputPitch_[i] != linearPitch || linearInputWidth_[i] != uint32_t(desc.Width) ||
                         linearInputHeight_[i] != uint32_t(desc.Height) || linearInputFormat_[i] != linearFormat ||
                         linearInputChannels_[i] != channels) {
-                        if (linearInput_[i]) (void)rt_->cuda.cuTexObjectDestroy(linearInput_[i]);
+                        if (linearInput_[i]) (void)rt_->images.cuTexObjectDestroy(linearInput_[i]);
                         linearInput_[i] = rt_->images.create_linear_texture(devicePointer, desc.Width, desc.Height,
                             linearFormat, channels, linearPitch, i == 0);
                         linearInputPointer_[i] = devicePointer; linearInputPitch_[i] = linearPitch;
