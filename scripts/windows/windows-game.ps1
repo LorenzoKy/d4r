@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 if ($ProfileGpuBoundary -and !$AsyncInterop) { throw '-ProfileGpuBoundary requires -AsyncInterop.' }
 if ($ProfileKernels -and $ProfileKernelsDeferred) { throw 'Choose either serializing or deferred kernel profiling.' }
 if ($ProfileLegacyStream -and !$ProfileKernelsDeferred) { throw '-ProfileLegacyStream requires -ProfileKernelsDeferred.' }
-if ($DirectOutput -and ($Preset -ne 11 -or !$LocalTextureKernels)) { throw '-DirectOutput requires preset K and -LocalTextureKernels.' }
+if ($DirectOutput -and $Preset -ne 11) { throw '-DirectOutput requires preset K.' }
 $package = [IO.Path]::GetFullPath($PSScriptRoot)
 $GameExe = (Get-Item -LiteralPath $GameExe -ErrorAction Stop).FullName
 $game = Split-Path $GameExe
