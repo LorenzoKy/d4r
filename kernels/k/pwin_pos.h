@@ -145,8 +145,6 @@ __device__ void pos_core(const PwinParams& p, const u8v* __restrict__ img, const
             op_store(&hb[tok][16 * nt], operand_from_dt(mv));
         }
     }
-    __builtin_amdgcn_wave_barrier();
-
     STAMP(4);
     // ---- MLP: C/8 chunks of 32 hidden; each weight operand serves the MT tiles
     for (int c = 0; c < L::NMLP; ++c)
@@ -253,7 +251,6 @@ __device__ void pos_encoder(const PwinParams& p0, const u8v* __restrict__ img, c
                 store_row16(&act[tok][16 * kt], gload_row16(xin + 16 * kt));
         }
     }
-    __builtin_amdgcn_wave_barrier();
     STAMP(1);
     pos_core<L, MT>(p, img, bias, act, hb);
     STAMP(6);
@@ -339,7 +336,6 @@ __device__ void pos_decoder(const PwinParams& p, const u8v* __restrict__ img, co
             }
         }
     }
-    block_sync();
     PwinParams q = p;
     q.w = p.w + L::CB;
     pos_core<L, MT>(q, img, bias, act, hb);
