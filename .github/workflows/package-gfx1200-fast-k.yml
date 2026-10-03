@@ -1,8 +1,8 @@
 name: Package RX 9060 XT fast-K async quick-test
 
 on:
-  push:
-    branches: [windows]
+  # Legacy F32-accumulator candidate; keep it manual so the release workflow is the only
+  # automatic Windows release package and the default artifact stays lean.
   workflow_dispatch:
 
 permissions:
