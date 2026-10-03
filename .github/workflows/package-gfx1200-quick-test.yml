@@ -1,4 +1,4 @@
-name: Package RX 9060 XT quick-test candidate
+name: Package RX 9060 XT lean optimized quick-test
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
         shell: pwsh
         run: .\scripts\windows\setup-windows-tools.ps1 -RuntimeProfile therock
 
-      - name: Build gfx1200 K baseline for async interop candidate
+      - name: Build gfx1200 K optimized candidate
         shell: pwsh
         run: |
           .\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch gfx1200 -BuildDirectory "$PWD\build\windows-gfx1200-async" -InstallDirectory "$PWD\dist\windows-gfx1200-async"
@@ -34,7 +34,7 @@ jobs:
       - name: Validate gfx1200 K code objects
         shell: pwsh
         run: |
-          $root="$PWD\dist\windows-gfx1200-async\experimental\k"
+          $root="$PWD\dist\windows-gfx1200-lean\experimental\k"
           $layers=@("enc0","enc1","enc2","enc3","enc4","dec5","dec4","dec3","dec2","dec1","dec0")
           foreach ($layer in $layers) {
             $path=Join-Path $root ("dltss_pwin_{0}_layer_gfx1200.hsaco" -f $layer)
@@ -55,8 +55,8 @@ jobs:
           $out="$root\dist\quick-test-async"
           $base="$out\issue10"
           $baseZip="$out\issue10.zip"
-          $src="$root\dist\windows-gfx1200-async"
-          $zip="$out\d4r-windows-quick-test-gfx1200-async.zip"
+          $src="$root\dist\windows-gfx1200-lean"
+          $zip="$out\d4r-windows-quick-test-gfx1200-lean.zip"
           New-Item -ItemType Directory -Force $out | Out-Null
           Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/xdfnx-dev/d4r/releases/download/windows-quick-test-20261002-issue10/d4r-windows-quick-test.zip" -OutFile $baseZip
           if ((Get-Item $baseZip).Length -ne 121092482) { throw "Unexpected issue10 base size." }
@@ -69,7 +69,10 @@ jobs:
             if (!$destK) { throw "No target K object for $($Matches[1])" }
             Copy-Item $srcK.FullName $destK.FullName -Force
           }
-          Copy-Item (Join-Path $src 'bin/d4r_nvngx.dll') (Join-Path $base 'files/common/d4r/nvngx.dll') -Force
+          Copy-Item (Join-Path $src 'bin/d4r_nvngx.dll') (Join-Path $base 'files/targets/gfx1200/d4r/_nvngx.dll') -Force
+          $baseTargetDir=Join-Path $base 'files/targets/gfx1200/d4r'
+          $legacyShim=Join-Path $baseTargetDir 'nvngx.dll'
+          if (Test-Path -LiteralPath $legacyShim) { Remove-Item -LiteralPath $legacyShim -Force }
           foreach ($name in @('windows-game.ps1','game-summary.ps1','gpu-target.ps1','gpu-preflight.ps1')) {
             Copy-Item (Join-Path $root ('scripts/windows/'+$name)) (Join-Path $base ('files/common/'+$name)) -Force
           }
@@ -87,6 +90,8 @@ jobs:
             $full=Join-Path $base ('files/common/'+$entry.path)
             if (Test-Path $full) { $entry.sha256=(Get-FileHash $full -Algorithm SHA256).Hash }
           }
+          $manifest.targets.gfx1200.files=@($manifest.targets.gfx1200.files | Where-Object { $_.path -notin @('d4r/nvngx.dll','d4r/_nvngx.dll') })
+          $manifest.targets.gfx1200.files += [pscustomobject]@{path='d4r/_nvngx.dll';sha256='';version=$null}
           foreach ($targetProp in $manifest.targets.PSObject.Properties) {
             foreach ($entry in @($targetProp.Value.files)) {
               $full=Join-Path $base ('files/targets/'+$targetProp.Name+'/'+$entry.path)
@@ -98,11 +103,11 @@ jobs:
           $manifest.targets.gfx1200.binarySourceCommit=$commit
           $manifest.targets.gfx1200.hardwareValidation='compile-only; RX 9060 XT packed-accumulator user test pending'
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
+          Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File | Remove-Item -Force
+          $manifest.files=@($manifest.files | Where-Object { $_.path -notlike '*.cmd' })
           $launchers=@(
-            @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
-            @{name='START-K-ASYNC.cmd'; arguments='-Preset 11 -AsyncInterop'},
-            @{name='START-K-PROFILE-LEGACY.cmd'; arguments='-Preset 11 -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
-            @{name='START-K-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+            @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
+            @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
@@ -112,12 +117,12 @@ jobs:
             $manifest.files += @{path=$launch.name;sha256=(Get-FileHash $path -Algorithm SHA256).Hash;version=$null}
           }
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
-          @{base='windows-quick-test-20261002-issue10';baseBytes=121092482;baseSha256='72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3';packageCommit=$commit;candidate='D4R_K_PACKED_ACC=OFF; D4R_K_GFX1200_LDS_PAD=OFF; ASYNC_INTEROP=AVAILABLE';binarySourceCommit=$commit;note='Current windows-branch strict-F16 K baseline with async interop launchers over the validated issue10 portable runtime. NVIDIA DLLs remain user-supplied.'} | ConvertTo-Json | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
+          @{base='windows-quick-test-20261002-issue10';baseBytes=121092482;baseSha256='72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3';packageCommit=$commit;candidate='gfx1200 K LDS-pad + direct-output + GPU-ordered async';binarySourceCommit=$commit;note='Lean two-launcher RX 9060 XT candidate. Shim is staged at d4r/_nvngx.dll, the path actually loaded by the Windows frontend; per-frame output validation is off in performance launchers.'} | ConvertTo-Json | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           [IO.Compression.ZipFile]::CreateFromDirectory($base,$zip,[IO.Compression.CompressionLevel]::Optimal,$false)
           $bytes=(Get-Item $zip).Length
           if ($bytes -lt 121092482) { throw "Final ZIP is smaller than issue10: $bytes bytes" }
-          if (!(Test-Path (Join-Path $base 'START-K.cmd'))) { throw 'START-K.cmd missing.' }
+          if (!(Test-Path (Join-Path $base 'START-K-OPTIMIZED.cmd')) -or !(Test-Path (Join-Path $base 'START-K-OPTIMIZED-PROFILE.cmd'))) { throw 'Optimized K launchers missing.' }
           Write-Host "FINAL QUICK TEST ZIP: $zip"
           Write-Host "FINAL QUICK TEST BYTES: $bytes"
           $sha=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -127,9 +132,9 @@ jobs:
       - name: Upload RX 9060 XT async interop quick-test
         uses: actions/upload-artifact@v4
         with:
-          name: d4r-windows-quick-test-gfx1200-async
+          name: d4r-windows-quick-test-gfx1200-lean
           path: |
-            dist/quick-test-async/d4r-windows-quick-test-gfx1200-async.zip
-            dist/quick-test-async/d4r-windows-quick-test-gfx1200-async.zip.sha256
+            dist/quick-test-async/d4r-windows-quick-test-gfx1200-lean.zip
+            dist/quick-test-async/d4r-windows-quick-test-gfx1200-lean.zip.sha256
           if-no-files-found: error
           retention-days: 14
