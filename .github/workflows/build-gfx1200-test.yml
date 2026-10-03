@@ -174,8 +174,8 @@ jobs:
           Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File | Remove-Item -Force
           $manifest.files=@($manifest.files | Where-Object { $_.path -notlike '*.cmd' })
           $launchers=@(
-            @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs'},
-            @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -AsyncGpuPipeline -LinearInputs -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -ProfileCommandHooks -ProfileCudaApi -ProfileGpuBoundary -KernelProfileEvery 17'}
+            @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies'},
+            @{name='START-K-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -ProfileCommandHooks -ProfileCudaApi -ProfileGpuBoundary -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
