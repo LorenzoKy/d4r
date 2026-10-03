@@ -56,6 +56,25 @@ struct ImageApi {
     D4R_IMAGE(cuSurfObjectGetResourceDesc, ResourceDescriptor*, Texture);
 #undef D4R_IMAGE
     explicit ImageApi(CudaApi& api) : cuda(api) {}
+    Texture create_linear_texture(CUdeviceptr pointer, size_t width, size_t height, uint32_t format,
+                                   uint32_t channels, size_t pitch, bool linearFilter) {
+        if (!pointer || !width || !height || !pitch) throw std::runtime_error("Invalid linear texture geometry");
+        struct Pitch2D { CUdeviceptr pointer; uint32_t format, channels; size_t width, height, pitch; }
+            pitch2D{pointer, format, channels, width, height, pitch};
+        static_assert(sizeof(Pitch2D) == 40, "CUDA_RESOURCE_DESC pitch2d");
+        ResourceDescriptor resource{};
+        resource.type = 3;
+        std::memcpy(resource.resource.reserved, &pitch2D, sizeof(pitch2D));
+        TextureDescriptor sampler{};
+        sampler.addressMode[0] = sampler.addressMode[1] = 1;
+        sampler.filterMode = linearFilter ? 1u : 0u;
+        sampler.flags = 2u;
+        Texture object = 0;
+        cuda.check(cuTexObjectCreate(&object, &resource, &sampler, nullptr), "cuTexObjectCreate(linear input)");
+        try { cuda.check(cuda.registerLinearTexture(object, width, height, format, channels), "d4rRegisterLinearTexture"); }
+        catch (...) { (void)cuTexObjectDestroy(object); throw; }
+        return object;
+    }
 };
 
 class Image {

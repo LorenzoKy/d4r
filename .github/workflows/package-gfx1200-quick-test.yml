@@ -106,8 +106,8 @@ jobs:
           Get-ChildItem -LiteralPath $base -Filter '*.cmd' -File | Remove-Item -Force
           $manifest.files=@($manifest.files | Where-Object { $_.path -notlike '*.cmd' })
           $launchers=@(
-            @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
-            @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
+            @{name='START-K-OPTIMIZED.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs'},
+            @{name='START-K-OPTIMIZED-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -LinearInputs -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
           )
           foreach ($launch in $launchers) {
             $path=Join-Path $base $launch.name
@@ -116,6 +116,13 @@ jobs:
             if ((Get-Content $path).Count -ne 4 -or !(Select-String -LiteralPath $path -Pattern '-File "%~dp0files\quick-test.ps1" ' -SimpleMatch)) { throw "Invalid launcher generated: $($launch.name)" }
             $manifest.files += @{path=$launch.name;sha256=(Get-FileHash $path -Algorithm SHA256).Hash;version=$null}
           }
+          $restorePath=Join-Path $base 'RESTORE-GAME.cmd'
+          $restoreCommand='"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Action restore'
+          @('@echo off','cd /d "%~dp0"',$restoreCommand,'pause') | Set-Content -LiteralPath $restorePath -Encoding ASCII
+          $restoreLines=@(Get-Content -LiteralPath $restorePath)
+          if ($restoreLines.Count -ne 4 -or $restoreLines[2] -ne $restoreCommand) { throw 'Invalid restore launcher generated.' }
+          $manifest.files += [pscustomobject]@{path='RESTORE-GAME.cmd';sha256=(Get-FileHash $restorePath -Algorithm SHA256).Hash;version=$null}
+
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
           @{base='windows-quick-test-20261002-issue10';baseBytes=121092482;baseSha256='72b9d7ee1815f7fccf409f4d234770d8cc1eea7061b596689ac67ef09b23e2d3';packageCommit=$commit;candidate='gfx1200 K LDS-pad + direct-output + GPU-ordered async';binarySourceCommit=$commit;note='Lean two-launcher RX 9060 XT candidate. Shim is staged at d4r/_nvngx.dll, the path actually loaded by the Windows frontend; per-frame output validation is off in performance launchers.'} | ConvertTo-Json | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
           Remove-Item $zip -Force -ErrorAction SilentlyContinue

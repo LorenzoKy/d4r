@@ -36,6 +36,10 @@ struct CudaApi {
         unsigned, void*, void**, void**);
     D4R_CU(cuGetErrorName, int, int, const char**);
     D4R_CU(cuGetErrorString, int, int, const char**);
+    using D4ROutputKernelNativeFn = int(WINAPI*)();
+    using D4RRegisterLinearTextureFn = int(WINAPI*)(CUdeviceptr, size_t, size_t, uint32_t, uint32_t);
+    D4ROutputKernelNativeFn outputKernelNative = library.symbol<D4ROutputKernelNativeFn>("d4rOutputKernelNative");
+    D4RRegisterLinearTextureFn registerLinearTexture = library.symbol<D4RRegisterLinearTextureFn>("d4rRegisterLinearTexture");
 #undef D4R_CU
     explicit CudaApi(const std::string& path) :
         search(std::filesystem::path(d4r::diag::wide(path)).parent_path()),

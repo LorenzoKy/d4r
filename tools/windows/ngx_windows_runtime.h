@@ -112,8 +112,9 @@ struct Runtime {
             cuda.check(cuda.cuDevicePrimaryCtxRetain(&context, ordinal), "cuDevicePrimaryCtxRetain");
             current();
             timeline = std::make_unique<SharedTimeline>(external, d3d);
-            std::printf("D4R_INTEROP async=%u batch_inputs=%u cpu_image_copies=0\n",
-                unsigned(std::getenv("D4R_ASYNC_INTEROP") != nullptr), unsigned(std::getenv("D4R_BATCH_INPUT_COPIES") != nullptr));
+            std::printf("D4R_INTEROP async=%u batch_inputs=%u linear_inputs=%u cpu_image_copies=0\n",
+                unsigned(std::getenv("D4R_ASYNC_INTEROP") != nullptr), unsigned(std::getenv("D4R_BATCH_INPUT_COPIES") != nullptr),
+                unsigned(std::getenv("D4R_LINEAR_INPUTS") != nullptr));
             // NGX's loader can probe CUDA during DLL initialization: establish
             // the correct primary context before loading either NVIDIA DLL.
             nvapi = std::make_unique<diag::Library>(diag::wide(env_path("D4R_NVAPI_DLL")));
@@ -236,10 +237,20 @@ class Feature {
         std::unique_ptr<PixelAllocation> canonical;
         PixelSpec spec{};
     } planes_[5];
+    cuda::Texture linearInput_[5]{};
+    CUdeviceptr linearInputPointer_[5]{};
+    uint64_t linearInputPitch_[5]{};
+    uint32_t linearInputWidth_[5]{}, linearInputHeight_[5]{};
+    uint32_t linearInputFormat_[5]{}, linearInputChannels_[5]{};
+    bool linearInputs_ = false;
     void cleanup() noexcept {
         (void)rt_->cuda.cuCtxSetCurrent(rt_->context);
         (void)rt_->cuda.cuCtxSynchronize();
         if (handle_) { (void)rt_->release(handle_); handle_ = nullptr; }
+        for (auto& object : linearInput_) {
+            if (object) (void)rt_->cuda.cuTexObjectDestroy(object);
+            object = 0;
+        }
         for (auto& plane : planes_) {
             plane.image.reset(); plane.canonical.reset(); plane.shared.reset(); plane.texture.Reset();
         }
@@ -530,6 +541,7 @@ private:
     }
     void prepare(void* parameters) {
         static const char* names[] = {"Color", "Depth", "MotionVectors", "Output", "ExposureTexture"};
+        linearInputs_ = std::getenv("D4R_LINEAR_INPUTS") != nullptr;
         for (unsigned i = 0; i < 5; ++i) {
             ID3D12Resource* texture = nullptr;
             (void)d4r_ngx_get_d3d12_resource(parameters, names[i], &texture);
@@ -546,8 +558,15 @@ private:
             const PixelSpec spec = pixel_spec(i, desc.Format);
             if (!pixel_supported(i, spec.storage)) throw std::runtime_error(std::string("Unsupported ") + names[i] + " DXGI format=" + std::to_string(desc.Format));
             auto& plane = planes_[i];
-            if (!plane.shared || plane.desc.Width != desc.Width || plane.desc.Height != desc.Height || plane.desc.Format != desc.Format) {
+            if (!plane.image || plane.desc.Width != desc.Width || plane.desc.Height != desc.Height || plane.desc.Format != desc.Format) {
                 rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "Synchronize(resize interop)");
+                if (linearInput_[i]) {
+                    (void)rt_->cuda.cuTexObjectDestroy(linearInput_[i]);
+                    linearInput_[i] = 0;
+                    linearInputPointer_[i] = 0; linearInputPitch_[i] = 0;
+                    linearInputWidth_[i] = linearInputHeight_[i] = 0;
+                    linearInputFormat_[i] = linearInputChannels_[i] = 0;
+                }
                 plane.image.reset(); plane.canonical.reset(); plane.shared.reset();
                 plane.shared = std::make_unique<SharedPlane>(rt_->external, rt_->device.Get(), desc);
                 if (!spec.direct) {
@@ -560,31 +579,49 @@ private:
                     outputDirect_ = false;
                     outputRedirectConfigured_ = false;
                     if (std::getenv("D4R_SHIM_OUTPUT_DIRECT")) {
-                        // The R2 redirect fast-path is a Windows K-only RGBA16F path.
-                        // Install it once when the output image is (re)created: the
-                        // destination is our persistent shared linear buffer, so the
-                        // per-frame surface-object HtoD write is pure driver overhead.
                         if (!spec.direct || spec.storage != pixel::rgba16f || plane.canonical)
                             throw std::runtime_error("Direct-output requires a direct RGBA16F K output");
-                        const uint64_t pitch = plane.shared->footprint.Footprint.RowPitch;
-                        if (pitch > UINT32_MAX) throw std::runtime_error("Direct-output pitch exceeds redirect ABI");
-                        const uintptr_t target = reinterpret_cast<uintptr_t>(plane.shared->mapped);
-                        plane.image->set_redirect(static_cast<CUdeviceptr>(target), static_cast<uint32_t>(pitch));
+                        // Activate the redirect per evaluation, only when the previous
+                        // actual output kernel was native. Translated output kernels
+                        // write the CUDA array and must keep the array->buffer copy.
                         outputDirect_ = true;
-                        outputRedirectConfigured_ = true;
                     }
                 }
                 std::printf("D4R_FORMAT plane=%s dxgi=%u canonical_channels=%u canonical_bits=%u gpu_conversion=%u cpu_copy=0\n",
                     names[i], unsigned(desc.Format), channels, half ? 16u : 32u, !spec.direct);
+                if (linearInputs_ && i != 3) {
+                    void* linearPointer = plane.canonical ? plane.canonical->data : plane.shared->mapped;
+                    const uint64_t linearPitch = plane.canonical ? plane.canonical->pitch : plane.shared->footprint.Footprint.RowPitch;
+                    const uint32_t linearFormat = half ? 16u : 32u;
+                    if (!linearPointer || !linearPitch || linearPitch > UINT64_C(0xffffffff))
+                        throw new std::runtime_error(std::string("Invalid linear input buffer for ") + names[i]);
+                    const CUdeviceptr devicePointer = reinterpret_cast<CUdeviceptr>(linearPointer);
+                    if (!linearInput_[i] || linearInputPointer_[i] != devicePointer ||
+                        linearInputPitch_[i] != linearPitch || linearInputWidth_[i] != uint32_t(desc.Width) ||
+                        linearInputHeight_[i] != uint32_t(desc.Height) || linearInputFormat_[i] != linearFormat ||
+                        linearInputChannels_[i] != channels) {
+                        if (linearInput_[i]) (void)rt_->cuda.cuTexObjectDestroy(linearInput_[i]);
+                        linearInput_[i] = rt_->images.create_linear_texture(devicePointer, desc.Width, desc.Height,
+                            linearFormat, channels, linearPitch, i == 0);
+                        linearInputPointer_[i] = devicePointer; linearInputPitch_[i] = linearPitch;
+                        linearInputWidth_[i] = uint32_t(desc.Width); linearInputHeight_[i] = uint32_t(desc.Height);
+                        linearInputFormat_[i] = linearFormat; linearInputChannels_[i] = channels;
+                    }
+                }
             }
             plane.texture = texture;
             if (i == 3)
-                std::printf("D4R_OUTPUT_PATH requested=%u active=%u spec_direct=%u canonical=%u format=%u\n",
-                    unsigned(std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr), unsigned(outputDirect_),
-                    unsigned(spec.direct), unsigned(plane.canonical != nullptr), unsigned(desc.Format));
+                std::printf("D4R_OUTPUT_PATH requested=%u active=%u native_last=%d spec_direct=%u canonical=%u format=%u\n",
+                    unsigned(std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr),
+                    unsigned(outputDirect_ && rt_->cuda.outputKernelNative() == 1),
+                    rt_->cuda.outputKernelNative(), unsigned(spec.direct), unsigned(plane.canonical != nullptr), unsigned(desc.Format));
             d4r_ngx_set_void(parameters_, names[i], &plane.image->object);
         }
         ngx::copy_frame(parameters, parameters_);
+        if (linearInputs_) {
+            for (unsigned i : {0u, 1u, 2u, 4u})
+                if (linearInput_[i]) d4r_ngx_set_void(parameters_, names[i], &linearInput_[i]);
+        }
         if (!ngx::uint_value(parameters_, "DLSS.Render.Subrect.Dimensions.Width")) d4r_ngx_set_uint(parameters_, "DLSS.Render.Subrect.Dimensions.Width", width);
         if (!ngx::uint_value(parameters_, "DLSS.Render.Subrect.Dimensions.Height")) d4r_ngx_set_uint(parameters_, "DLSS.Render.Subrect.Dimensions.Height", height);
         for (const char* name : {"TransparencyMask", "DLSS.Input.Bias.Current.Color.Mask"}) d4r_ngx_set_void(parameters_, name, nullptr);
@@ -635,7 +672,8 @@ private:
                     unsigned(plane.desc.Width), plane.desc.Height, plane.spec.storage, i);
                 data = plane.canonical->data; pitch = plane.canonical->pitch;
             }
-            plane.image->upload_device(reinterpret_cast<uintptr_t>(data), pitch, batchInputs);
+            if (!linearInputs_)
+                plane.image->upload_device(reinterpret_cast<uintptr_t>(data), pitch, batchInputs);
         }
         // HIP conversion and CUDA array copies are ordered on the shared
         // legacy default stream. Retain an all-stream completion before NGX,
@@ -644,7 +682,7 @@ private:
         // this experimental mode, so host synchronization would only create a bubble.
         if (batchInputs && !gpuPipeline)
             rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "Interop input batch completion");
-        mark("input_conversion_array_upload");
+        mark(linearInputs_ ? "input_linear_texture_ready" : "input_conversion_array_upload");
         if (std::getenv("D4R_INTEROP_VERIFY")) {
             for (unsigned i : {0u, 1u, 2u, 4u}) if (planes_[i].texture) {
                 uint32_t sample[8]{};
@@ -659,8 +697,25 @@ private:
             }
         }
         auto& output = planes_[3];
-        if (outputRedirectConfigured_) mark("output_direct_redirect_cached");
+        const bool directRequested = outputDirect_ && std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr;
+        bool directActive = directRequested && rt_->cuda.outputKernelNative() == 1;
+        if (directActive) {
+            const uint64_t pitch = output.shared->footprint.Footprint.RowPitch;
+            if (pitch > UINT32_MAX) throw std::runtime_error("Direct-output pitch exceeds redirect ABI");
+            output.image->set_redirect(reinterpret_cast<CUdeviceptr>(output.shared->mapped), static_cast<uint32_t>(pitch));
+            outputRedirectConfigured_ = true;
+            mark("output_direct_redirect");
+        } else {
+            outputRedirectConfigured_ = false;
+        }
         ngx_check(rt_->evaluate(handle_, parameters_, nullptr), "CUDA EvaluateFeature");
+        const int actualOutputNative = rt_->cuda.outputKernelNative();
+        if (directActive && actualOutputNative != 1) {
+            output.image->set_redirect(0, 0);
+            outputRedirectConfigured_ = false;
+            directActive = false;
+            mark("output_direct_disabled_translated");
+        }
         mark("ngx_evaluate_host");
         // The 590 profile sampled every 17th launch and observed every sampled
         // K/NGX launch on stream 0x0. The GPU-pipeline candidate therefore keeps
@@ -671,7 +726,7 @@ private:
             rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "NGX all-stream completion");
             mark("ngx_all_stream_completion");
         }
-        if (!outputDirect_) {
+        if (!directActive) {
             output.image->download_device(reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped),
                 output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch);
             rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "VRAM output completion");
