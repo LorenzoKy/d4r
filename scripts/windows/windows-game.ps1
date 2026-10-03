@@ -263,7 +263,7 @@ try {
     }
     foreach ($key in $settings.Keys) { $old[$key] = [Environment]::GetEnvironmentVariable($key,'Process'); [Environment]::SetEnvironmentVariable($key,$settings[$key],'Process') }
     @{preset=$Preset; game=$GameExe; package=$metadata; attachedDebugger=[bool]$CaptureExceptions;
-      diagnostics=@{asyncInterop=[bool]$AsyncInterop; batchInputCopies=[bool]$BatchInputCopies; directOutput=[bool]$DirectOutput; validateOutput=[bool]$ValidateOutput;
+      diagnostics=@{asyncInterop=[bool]$AsyncInterop; batchInputCopies=[bool]$BatchInputCopies; asyncGpuPipeline=[bool]$AsyncGpuPipeline; directOutput=[bool]$DirectOutput; validateOutput=[bool]$ValidateOutput;
         profileGpuBoundary=[bool]$ProfileGpuBoundary; profileStages=[bool]$ProfileStages; profileCudaApi=[bool]$ProfileCudaApi;
         profileKernels=[bool]$ProfileKernels; profileKernelsDeferred=[bool]$ProfileKernelsDeferred;
         profileLegacyStream=[bool]$ProfileLegacyStream; kernelProfileEvery=$KernelProfileEvery};
