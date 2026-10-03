@@ -60,6 +60,7 @@ $entry=Stage (Join-Path $repo 'tools/windows/gpu-targets.json') 'files/common/gp
 $common+=@{path='gpu-targets.json'; sha256=$entry.sha256; version=$entry.version}
 [void](Stage (Join-Path $PSScriptRoot 'quick-test.ps1') 'files/quick-test.ps1')
 [void](Stage (Join-Path $repo 'docs/windows-quick-test.txt') 'READ-ME-FIRST.txt')
+[void](Stage (Join-Path $repo 'CHANGELOG-WINDOWS.md') 'CHANGELOG-WINDOWS.md')
 $launchers=@(
     # Release test surface: exactly three CMD files.
     @{name='START-K.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -AsyncGpuPipeline'},
@@ -88,7 +89,7 @@ if ($NvidiaDirectory) {
         (Get-FileHash -LiteralPath $dlss -Algorithm SHA256).Hash -ne $baseline.dlssSha256) {
         throw 'Bundled NVIDIA files must match the validated original NGX and DLSS hashes.'
     }
-    [void](Stage $core 'files/nvidia/_nvngx.dll')
+   [void](Stage $core 'files/nvidia/_nvngx.dll')
     [void](Stage $dlss 'files/nvidia/nvngx_dlss.dll')
     [void](Stage $NvidiaLicensePath 'licenses/NVIDIA-RTX.txt')
     $bundledNvidia=@{ngxCore='nvidia/_nvngx.dll'; dlssDll='nvidia/nvngx_dlss.dll'; license='licenses/NVIDIA-RTX.txt'}
