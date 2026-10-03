@@ -253,7 +253,7 @@ inline void apply(const std::filesystem::path& dir, const Settings& settings) {
         {L"D4R_QUIET_API", settings.verbose ? unset : on},
         {L"D4R_VALIDATE_OUTPUT", settings.validateOutput ? on : unset},
         {L"D4R_ASYNC_INTEROP", settings.asyncInterop ? on : unset},
-        {L"D4R_BATCH_INPUT_COPIES", settings.batchInputCopies ? on : unset},
+        {L"D4R_BATCH_INPUT_COPIES", (settings.asyncInterop && settings.batchInputCopies) ? on : unset},
         {L"D4R_ASYNC_GPU_PIPELINE", (settings.asyncInterop && settings.asyncGpuPipeline) ? on : unset},
         {L"D4R_SHIM_WATERMARK", settings.showWatermark ? on : unset},
         {L"D4R_PROFILE_STAGES", unset}, {L"D4R_ZLUDA_PROFILE", unset}, {L"D4R_ZLUDA_PROFILE_DEFERRED", unset},
