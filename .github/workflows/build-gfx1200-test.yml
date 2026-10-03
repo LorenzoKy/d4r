@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: windows-rx9060xt-release-test
+  cancel-in-progress: true
+
 jobs:
   release-test:
     runs-on: windows-latest
