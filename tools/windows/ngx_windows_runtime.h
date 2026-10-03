@@ -626,11 +626,7 @@ private:
         if (directOutput) {
             // tex_common's R2 redirect fast-path is intentionally limited to the
             // native K RGBA16F surface layout. Never redirect other output formats.
-            if (!output.spec.direct || output.spec.storage != pixel::rgba16f || !output.canonical) {
-                // RGBA16F output should be direct and therefore have no canonical
-                // allocation. Any other shape is rejected explicitly below.
-            }
-            if (output.spec.storage != pixel::rgba16f || output.canonical) {
+            if (!output.spec.direct || output.spec.storage != pixel::rgba16f || output.canonical) {
                 throw std::runtime_error("Direct-output requires a direct RGBA16F K output");
             }
             const uintptr_t target = reinterpret_cast<uintptr_t>(output.shared->mapped);
