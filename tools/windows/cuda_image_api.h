@@ -166,7 +166,7 @@ public:
         } redirect{};
         redirect.word = pitch != 0 ? (0x52320000u | ((pitch >> 3) & 0xffffu)) : 0u;
         redirect.pointer = destination;
-        api_.cuda.check(api_.cuMemcpyHtoD_v2(static_cast<CUdeviceptr>(object) + 84, &redirect, 12),
+        api_.cuda.check(api_.cuda.cuMemcpyHtoD_v2(static_cast<CUdeviceptr>(object) + 84, &redirect, 12),
                         "cuMemcpyHtoD_v2(surface direct-output redirect)");
     }
 };
