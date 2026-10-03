@@ -72,6 +72,12 @@ foreach ($launch in $launchers) {
     if ($lines.Count -ne 4 -or $lines[2] -ne $command) { throw "Invalid launcher generated: $($launch.name)" }
     $files.Add(@{path=$launch.name; sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash; version=$null})
 }
+$restorePath=Join-Path $PackageRoot 'RESTORE-GAME.cmd'
+$restoreCommand='"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0files\quick-test.ps1" -Action restore'
+@('@echo off','cd /d "%~dp0"',$restoreCommand,'pause') | Set-Content -LiteralPath $restorePath -Encoding ASCII
+$restoreLines=@(Get-Content -LiteralPath $restorePath)
+if ($restoreLines.Count -ne 4 -or $restoreLines[2] -ne $restoreCommand) { throw 'Invalid restore launcher generated.' }
+$files.Add(@{path='RESTORE-GAME.cmd'; sha256=(Get-FileHash -LiteralPath $restorePath -Algorithm SHA256).Hash; version=$null})
 $ngxCoreSha256='66767018C36B3BAB46398DADE3ADF173DAA3730FDA75965689EA848C9BC4E79B'
 $bundledNvidia=$null
 if ($NvidiaDirectory) {
@@ -112,4 +118,4 @@ if ($ArchivePath) {
     } finally { if ($archive) { $archive.Dispose() }; $stream.Dispose() }
 }
 $nvidiaMode=if ($bundledNvidia) { 'bundled NVIDIA files; distributor must have appropriate permission' } else { 'user-supplied NVIDIA files' }
-Write-Host "Quick-test package: $PackageRoot (11 targets, automatic GPU selection, $nvidiaMode)"
+Write-Host "Quick-test package: $PackageRoot (11 targets, automatic GPU selection, two optimized K launchers + restore utility, $nvidiaMode)"
