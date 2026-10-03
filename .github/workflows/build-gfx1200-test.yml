@@ -177,6 +177,8 @@ jobs:
             @{name='START-K-LDS-PAD-DIRECT-PROFILE.cmd'; arguments='-Preset 11 -DirectOutput -ProfileStages -ProfileKernelsDeferred -KernelProfileEvery 17'},
             @{name='START-K-LDS-PAD-DIRECT-ASYNC-BATCH.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput'},
             @{name='START-K-LDS-PAD-DIRECT-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-GPU-PIPELINE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline'},
+            @{name='START-K-LDS-PAD-DIRECT-ASYNC-GPU-PIPELINE-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -DirectOutput -AsyncGpuPipeline -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
             @{name='START-K-LDS-PAD-ASYNC-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'},
             @{name='START-K-LDS-PAD-ASYNC-BATCH-PROFILE.cmd'; arguments='-Preset 11 -AsyncInterop -BatchInputCopies -ProfileStages -ProfileKernelsDeferred -ProfileLegacyStream -KernelProfileEvery 17'}
           )
@@ -195,7 +197,7 @@ jobs:
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding UTF8
           @{
             base='windows-quick-test-20261002-issue10'; baseSha256=$baseHash; baseBytes=121092482
-            d4rCommit=$currentCommit; gfx1200KSource='dist/windows-gfx1200-lds-pad/experimental/k'; candidate='gfx1200-k-lds-pad'; asyncLaunchers=@('START-K-LDS-PAD-ASYNC.cmd','START-K-LDS-PAD-ASYNC-PROFILE.cmd')
+            d4rCommit=$currentCommit; gfx1200KSource='dist/windows-gfx1200-lds-pad/experimental/k'; candidate='gfx1200-k-lds-pad-plus-true-gpu-async'; asyncLaunchers=@('START-K-LDS-PAD-DIRECT-ASYNC-GPU-PIPELINE.cmd','START-K-LDS-PAD-DIRECT-ASYNC-GPU-PIPELINE-PROFILE.cmd')
             note='Current windows-branch gfx1200 shim/diagnostics and 11 K objects overlaid on the validated issue10 quick-test runtime. NVIDIA DLLs remain excluded; tester supplies local originals.'
           } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $base 'BUILD-PROVENANCE.json') -Encoding UTF8
           Remove-Item $zip -Force -ErrorAction SilentlyContinue

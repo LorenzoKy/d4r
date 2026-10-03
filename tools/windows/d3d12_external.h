@@ -224,6 +224,14 @@ public:
                 throw std::runtime_error("D3D12 input completion timeout");
         }
     }
+    // Experimental true-GPU async path. Insert the external wait on the
+    // legacy/default stream used by the currently profiled DLSS transaction.
+    // No host wait is introduced here.
+    void wait_ready_default_stream(uint64_t ready) {
+        hipExternalSemaphoreWaitParams wait{}; wait.params.fence.value = ready;
+        api_.hip.check(api_.hipWaitExternalSemaphoresAsync(&semaphore_, &wait, 1, nullptr),
+            "HIP wait(D3D12 input, default stream)");
+    }
     void signal_output(ID3D12CommandQueue* queue) {
         const uint64_t done = ++value_;
         signal_ready(done);
@@ -232,6 +240,11 @@ public:
     void signal_ready(uint64_t done) {
         hipExternalSemaphoreSignalParams signal{}; signal.params.fence.value = done;
         api_.hip.check(api_.hipSignalExternalSemaphoresAsync(&semaphore_, &signal, 1, stream_), "HIP signal(output)");
+    }
+    void signal_ready_default_stream(uint64_t done) {
+        hipExternalSemaphoreSignalParams signal{}; signal.params.fence.value = done;
+        api_.hip.check(api_.hipSignalExternalSemaphoresAsync(&semaphore_, &signal, 1, nullptr),
+            "HIP signal(output, default stream)");
     }
     void drain(ID3D12CommandQueue* queue) {
         const uint64_t done = ++value_;

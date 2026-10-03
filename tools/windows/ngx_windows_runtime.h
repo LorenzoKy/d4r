@@ -578,6 +578,11 @@ private:
                     names[i], unsigned(desc.Format), channels, half ? 16u : 32u, !spec.direct);
             }
             plane.texture = texture;
+            if (i == 3)
+                std::printf("D4R_OUTPUT_PATH requested=%u active=%u spec_direct=%u canonical=%u format=%u
+",
+                    unsigned(std::getenv("D4R_SHIM_OUTPUT_DIRECT") != nullptr), unsigned(outputDirect_),
+                    unsigned(spec.direct), unsigned(plane.canonical != nullptr), unsigned(desc.Format));
             d4r_ngx_set_void(parameters_, names[i], &plane.image->object);
         }
         ngx::copy_frame(parameters, parameters_);
@@ -598,6 +603,7 @@ private:
         const auto begin = std::chrono::steady_clock::now();
         auto stage = begin;
         const bool profileStages = std::getenv("D4R_PROFILE_STAGES") != nullptr;
+        const bool gpuPipeline = ticket && std::getenv("D4R_ASYNC_GPU_PIPELINE") != nullptr;
         auto mark = [&](const char* name) {
             if (!profileStages) return;
             const auto now = std::chrono::steady_clock::now();
@@ -605,7 +611,9 @@ private:
                 std::chrono::duration<double, std::milli>(now - stage).count());
             stage = std::chrono::steady_clock::now();
         };
-        if (ticket) rt_->timeline->wait_ready(ticket->input); else rt_->timeline->wait_input(queue);
+        if (gpuPipeline) rt_->timeline->wait_ready_default_stream(ticket->input);
+        else if (ticket) rt_->timeline->wait_ready(ticket->input);
+        else rt_->timeline->wait_input(queue);
         // In async mode the timeline wait and previous frame both establish
         // completion: wait_ready() synchronizes the interop stream, while the
         // prior execute_cuda() already did the full NGX context completion.
@@ -633,7 +641,10 @@ private:
         // HIP conversion and CUDA array copies are ordered on the shared
         // legacy default stream. Retain an all-stream completion before NGX,
         // including any internal nonblocking streams it might choose to use.
-        if (batchInputs) rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "Interop input batch completion");
+        // The following EvaluateFeature is queued on the same default stream in
+        // this experimental mode, so host synchronization would only create a bubble.
+        if (batchInputs && !gpuPipeline)
+            rt_->cuda.check(rt_->cuda.cuStreamSynchronize(nullptr), "Interop input batch completion");
         mark("input_conversion_array_upload");
         if (std::getenv("D4R_INTEROP_VERIFY")) {
             for (unsigned i : {0u, 1u, 2u, 4u}) if (planes_[i].texture) {
@@ -652,10 +663,15 @@ private:
         if (outputRedirectConfigured_) mark("output_direct_redirect_cached");
         ngx_check(rt_->evaluate(handle_, parameters_, nullptr), "CUDA EvaluateFeature");
         mark("ngx_evaluate_host");
-        // NGX can use internal nonblocking streams. The default stream alone
-        // does not establish completion of those streams.
-        rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "NGX all-stream completion");
-        mark("ngx_all_stream_completion");
+        // The 590 profile sampled every 17th launch and observed every sampled
+        // K/NGX launch on stream 0x0. The GPU-pipeline candidate therefore keeps
+        // dependency tracking on that stream instead of synchronizing the CPU.
+        if (gpuPipeline)
+            mark("ngx_all_stream_completion_skipped_gpu_ordered");
+        else {
+            rt_->cuda.check(rt_->cuda.cuCtxSynchronize(), "NGX all-stream completion");
+            mark("ngx_all_stream_completion");
+        }
         if (!outputDirect_) {
             output.image->download_device(reinterpret_cast<uintptr_t>(output.canonical ? output.canonical->data : output.shared->mapped),
                 output.canonical ? output.canonical->pitch : output.shared->footprint.Footprint.RowPitch);
@@ -674,7 +690,9 @@ private:
         mark("output_diagnostic");
         if (output.canonical) rt_->pixels->convert(true, output.canonical->data, output.canonical->pitch, output.shared->mapped,
             output.shared->footprint.Footprint.RowPitch, unsigned(output.desc.Width), output.desc.Height, output.spec.storage, 3);
-        if (ticket) rt_->timeline->signal_ready(ticket->output); else rt_->timeline->signal_output(queue);
+        if (gpuPipeline) rt_->timeline->signal_ready_default_stream(ticket->output);
+        else if (ticket) rt_->timeline->signal_ready(ticket->output);
+        else rt_->timeline->signal_output(queue);
         mark("output_conversion_fence_signal");
         std::printf("D4R_FRAME cpu_frame_copies=%u frame_age=0 interop_ngx_ms=%.3f\n", std::getenv("D4R_INTEROP_VERIFY") ? 1u : 0u,
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count());

@@ -19,6 +19,7 @@ param(
     [switch]$ProfileGpuBoundary,
     [switch]$UncachedInteropLists,
     [switch]$AsyncInterop,
+    [switch]$AsyncGpuPipeline,
     [switch]$BatchInputCopies,
     [switch]$DirectOutput,
     [switch]$VerboseRuntime,
@@ -33,6 +34,8 @@ $ErrorActionPreference = 'Stop'
 if ($ProfileGpuBoundary -and !$AsyncInterop) { throw '-ProfileGpuBoundary requires -AsyncInterop.' }
 if ($ProfileKernels -and $ProfileKernelsDeferred) { throw 'Choose either serializing or deferred kernel profiling.' }
 if ($ProfileLegacyStream -and !$ProfileKernelsDeferred) { throw '-ProfileLegacyStream requires -ProfileKernelsDeferred.' }
+if ($AsyncGpuPipeline -and !$AsyncInterop) { throw '-AsyncGpuPipeline requires -AsyncInterop.' }
+if ($AsyncGpuPipeline -and $Preset -ne 11) { throw '-AsyncGpuPipeline is currently restricted to K.' }
 if ($DirectOutput -and $Preset -ne 11) { throw '-DirectOutput requires preset K.' }
 $package = [IO.Path]::GetFullPath($PSScriptRoot)
 $GameExe = (Get-Item -LiteralPath $GameExe -ErrorAction Stop).FullName
@@ -222,6 +225,7 @@ $settings = @{
     D4R_PROFILE_GPU_BOUNDARY=$(if ($ProfileGpuBoundary) { '1' } else { $null });
     D4R_DISABLE_INTEROP_LIST_CACHE=$(if ($UncachedInteropLists) { '1' } else { $null });
     D4R_ASYNC_INTEROP=$(if ($AsyncInterop) { '1' } else { $null });
+    D4R_ASYNC_GPU_PIPELINE=$(if ($AsyncGpuPipeline) { '1' } else { $null });
     D4R_BATCH_INPUT_COPIES=$(if ($BatchInputCopies) { '1' } else { $null });
     D4R_SHIM_OUTPUT_DIRECT=$(if ($DirectOutput) { '1' } else { $null });
     D4R_DIAG_DIR=$OutputDirectory; ZLUDA_LOG_DIR=(Join-Path $OutputDirectory 'zluda-trace');
@@ -260,7 +264,7 @@ try {
     }
     foreach ($key in $settings.Keys) { $old[$key] = [Environment]::GetEnvironmentVariable($key,'Process'); [Environment]::SetEnvironmentVariable($key,$settings[$key],'Process') }
     @{preset=$Preset; game=$GameExe; package=$metadata; attachedDebugger=[bool]$CaptureExceptions;
-      diagnostics=@{asyncInterop=[bool]$AsyncInterop; batchInputCopies=[bool]$BatchInputCopies; directOutput=[bool]$DirectOutput; validateOutput=[bool]$ValidateOutput;
+      diagnostics=@{asyncInterop=[bool]$AsyncInterop; asyncGpuPipeline=[bool]$AsyncGpuPipeline; batchInputCopies=[bool]$BatchInputCopies; directOutput=[bool]$DirectOutput; validateOutput=[bool]$ValidateOutput;
         profileGpuBoundary=[bool]$ProfileGpuBoundary; profileStages=[bool]$ProfileStages; profileCudaApi=[bool]$ProfileCudaApi;
         profileKernels=[bool]$ProfileKernels; profileKernelsDeferred=[bool]$ProfileKernelsDeferred;
         profileLegacyStream=[bool]$ProfileLegacyStream; kernelProfileEvery=$KernelProfileEvery};
