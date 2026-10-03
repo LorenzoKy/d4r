@@ -225,6 +225,7 @@ class Feature {
     std::thread worker_;
     bool worker_stop_ = false, worker_active_ = false;
     std::string worker_failure_;
+    uint64_t async_slot_waits_ = 0;
     // When enabled explicitly, the native K Hiluma output surface writes
     // directly into the shared/canonical linear output buffer.
     bool outputDirect_ = false;
@@ -399,8 +400,19 @@ private:
             selected = copy_slots_.front().get();
             for (auto& slot : copy_slots_) if (slot->done < selected->done) selected = slot.get();
             // Bounded ownership; this wait is outside the runtime mutex.
-            wait_copies(selected->done);
+            // Measure producer-side backpressure explicitly so an async pipeline that
+            // has fallen behind cannot be mistaken for GPU kernel time.
+            const auto wait_begin = std::chrono::steady_clock::now();
+            const uint64_t waited_for = selected->done;
+            wait_copies(waited_for);
             report_completed_copies();
+            const double wait_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - wait_begin).count();
+            ++async_slot_waits_;
+            if (wait_ms > 0.01 && (async_slot_waits_ <= 8 || (async_slot_waits_ % 64) == 0)) {
+                std::printf("D4R_ASYNC_SLOT_WAIT wait_ms=%.6f slot_count=%zu waited_for=%llu completed_after=%llu count=%llu\\n",
+                    wait_ms, copy_slots_.size(), (unsigned long long)waited_for,
+                    (unsigned long long)copy_completion_->GetCompletedValue(), (unsigned long long)async_slot_waits_);
+            }
         }
         if (selected) {
             // The fence can advance between report_completed_copies() and
